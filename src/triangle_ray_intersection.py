@@ -70,7 +70,6 @@ class CollisionDetector:
         ''' Given path to JSON file describing skeleton, convert to dict with connectivity'''
 
 
-
     @staticmethod
     def _single_obj_to_trimesh(obj_path: str):
         ''' Convert the obj at the given path to a trimesh object and return the object and frame index '''
@@ -78,6 +77,39 @@ class CollisionDetector:
             frame_index = int(os.path.splitext(obj_path)[0])
             return frame_index, trimesh.load("example_obj_folder/"+obj_path, force='mesh')
 
+
+    def visualise_collision(self, frame_idx: int):
+        ''' Give a frame index, calculate collision points then visualise'''
+
+        location_array, normal_array = self.get_collisions(frame_idx)
+        ray_visualize = trimesh.load_path(
+            np.hstack((location_array, location_array + normal_array * 5.0)).reshape(-1, 2, 3)
+        )
+        scene = trimesh.Scene([self._obj_dict[244], ray_visualize])
+        # show the visualization
+        return scene
+
+    def visualise_animal(self, frame_idx: int):
+        if not self._pose_ray_dict.keys().__contains__(frame_idx):
+            self._pose_ray_dict[frame_idx] = self._generate_rays(frame_idx)
+
+        pose_ray_dict = self._pose_ray_dict[frame_idx]
+        ray_origins = np.array([pose_ray_dict[link]['origin'] for link in pose_ray_dict.keys()])
+        ray_directions = np.array([pose_ray_dict[link]['vector'] for link in pose_ray_dict.keys()])
+        ray_visualise = trimesh.load_path(
+            np.hstack((ray_origins, ray_origins + ray_directions)).reshape(-1, 2, 3)
+        )
+        nodes = trimesh.points.PointCloud(ray_origins)
+
+        # create a unique color for each point
+        cloud_colors = np.array([trimesh.visual.random_color() for i in nodes])
+
+        # set the colors on the random point and its nearest point to be the same
+        nodes.vertices_color = cloud_colors
+
+        # create a scene containing the mesh and two sets of points
+        scene = trimesh.Scene([ray_visualise, nodes])
+        return scene
 
     def get_collisions(self, frame_idx: int):
         '''
@@ -102,13 +134,8 @@ class CollisionDetector:
             return_locations=True
         )
 
-
-
+        surface_norm = self._obj_dict[244].face_normals[index_tri]
         return location, surface_norm
-
-    def _get_surface_norm(self, frame_idx, triangle_idx):
-        ''' Find the surface normal for the object at the frame index listed and for the triangle face'''
-
 
 
     def _check_frame_exist(self, frame_idx):
