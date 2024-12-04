@@ -1,0 +1,17 @@
+name: 3d_ant_analysis
+channels:
+  - conda-forge
+  - defaults
+  - pip
+dependencies:
+  - python=3.11
+  - matplotlib
+  - numpy
+  - trimesh
+  - pip
+  - pip:
+    - embreex
+
+#variables:
+#  VAR1: valueA
+#  VAR2: valueB
