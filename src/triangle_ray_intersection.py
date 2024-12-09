@@ -4,6 +4,8 @@ import concurrent.futures
 import trimesh
 import os
 
+from numpy.distutils.conv_template import header
+
 logger = logging.getLogger(__name__)
 
 
@@ -14,7 +16,9 @@ class CollisionDetector:
         self._obj_dict = {}
         self._read_obj_folder_mt(self._obj_folder)
         self._skeleton_connectivity = [(0, 1), (0, 17), (0, 16), (0, 19), (0, 18), (1, 14), (1, 15), (1, 22), (1, 23), (2, 3), (4, 5), (6, 7), (8, 9), (10, 11), (12, 13), (14, 4), (15, 2), (16, 8), (17, 6), (18, 12), (19, 10), (20, 1), (21, 1), (22, 24), (23, 25)]
-        self._pose_array = np.loadtxt(pose_csv, delimiter=',')
+        converter = lambda x: np.float64(x or np.nan)
+        #self._pose_array = np.loadtxt(pose_csv, delimiter=',', skiprows=1, converters={0: converter})
+        self._pose_array = np.genfromtxt(pose_csv, delimiter=',', skip_header=1, converters={0: converter})
         self._pose_dict = self._pose_csv_to_dict(self._pose_array)
         self._pose_ray_dict = {}
 
@@ -42,9 +46,9 @@ class CollisionDetector:
                 try:
                     frame_idx, trimesh_obj = future.result()
                 except Exception as exc:
-                    print('%r generated an exception: %s' % (path_input, exc))
+                    logger.error('%r generated an exception: %s' % (path_input, exc))
                 else:
-                    print('Frame index is %d ' % frame_idx)
+                    logger.info('Frame index is %d ' % frame_idx)
                     self._obj_dict[frame_idx] = trimesh_obj
 
     @staticmethod
@@ -70,23 +74,27 @@ class CollisionDetector:
         ''' Given path to JSON file describing skeleton, convert to dict with connectivity'''
 
 
-    @staticmethod
-    def _single_obj_to_trimesh(obj_path: str):
+    def _single_obj_to_trimesh(self, obj_path: str):
         ''' Convert the obj at the given path to a trimesh object and return the object and frame index '''
         if not obj_path.startswith('.') and os.path.splitext(obj_path)[-1] in [".obj", ".OBJ"]:
-            frame_index = int(os.path.splitext(obj_path)[0])
-            return frame_index, trimesh.load("example_obj_folder/"+obj_path, force='mesh')
+            frame_index = int(os.path.splitext(obj_path)[-2].split('_')[-1]) # Add to only get the number next to the obj extension
+            return frame_index, trimesh.load(self._obj_folder + obj_path, force='mesh')
 
 
     def visualise_collision(self, frame_idx: int):
         ''' Give a frame index, calculate collision points then visualise'''
 
         location_array, normal_array = self.get_collisions(frame_idx)
-        ray_visualize = trimesh.load_path(
-            np.hstack((location_array, location_array + normal_array * 5.0)).reshape(-1, 2, 3)
-        )
-        scene = trimesh.Scene([self._obj_dict[244], ray_visualize])
-        # show the visualization
+        if len(location_array) == 0:
+            logger.info("No collisions found for %d" % frame_idx)
+            ray_visualise = []
+        else:
+            ray_visualise = trimesh.load_path(
+                np.hstack((location_array, location_array + normal_array * 5.0)).reshape(-1, 2, 3)
+            )
+        ax = trimesh.creation.axis(10)
+        scene = trimesh.Scene([self._obj_dict[frame_idx], ax, ray_visualise])
+        # show the visualisation
         return scene
 
     def visualise_animal(self, frame_idx: int):
@@ -107,8 +115,11 @@ class CollisionDetector:
         # set the colors on the random point and its nearest point to be the same
         nodes.vertices_color = cloud_colors
 
+        #Make some axes to indicate direction
+        ax = trimesh.creation.axis(10)
+
         # create a scene containing the mesh and two sets of points
-        scene = trimesh.Scene([ray_visualise, nodes])
+        scene = trimesh.Scene([ray_visualise, ax, nodes])
         return scene
 
     def get_collisions(self, frame_idx: int):
@@ -116,15 +127,16 @@ class CollisionDetector:
         Given a frame index, calculate and return the collisions with the object and the surface normal at the
         point of collision.
         '''
-        # if not self._check_frame_exist(frame_idx):
-        #     logger.error('Could not find collision for frame index {}'.format(frame_idx))
-        #     return None
+        if not self._check_frame_exist(frame_idx):
+            logger.warning('Could not find collision for frame index {}'.format(frame_idx))
+            return None
 
         if not self._pose_ray_dict.keys().__contains__(frame_idx):
             self._pose_ray_dict[frame_idx] = self._generate_rays(frame_idx)
 
         pose_ray_dict = self._pose_ray_dict[frame_idx]
-        ri = trimesh.ray.ray_pyembree.RayMeshIntersector(self._obj_dict[244])
+        #ri = trimesh.ray.ray_pyembree.RayMeshIntersector(self._obj_dict[frame_idx])
+        ri = trimesh.ray.ray_triangle.RayMeshIntersector(self._obj_dict[frame_idx])
 
         index_tri, index_ray, location = ri.intersects_id(
             ray_origins=[pose_ray_dict[link]['origin'] for link in pose_ray_dict.keys()],
@@ -134,17 +146,17 @@ class CollisionDetector:
             return_locations=True
         )
 
-        surface_norm = self._obj_dict[244].face_normals[index_tri]
+        surface_norm = self._obj_dict[frame_idx].face_normals[index_tri]
         return location, surface_norm
 
 
     def _check_frame_exist(self, frame_idx):
         ''' If frame index is not present in one of the dictionaries, return false'''
         if not self._obj_dict.keys().__contains__(frame_idx):
-            logger.error('Frame index {} not present in the object mesh dictionary \n'.format(frame_idx))
+            logger.debug('Frame index {} not present in the object mesh dictionary \n'.format(frame_idx))
             return False
         if not self._pose_dict.keys().__contains__(frame_idx):
-            logger.error('Frame index {} not present in the animal skeleton dictionary \n'.format(frame_idx))
+            logger.debug('Frame index {} not present in the animal skeleton dictionary \n'.format(frame_idx))
             return False
         return True
 

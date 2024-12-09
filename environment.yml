@@ -4,15 +4,15 @@ channels:
   - defaults
   - pip
 dependencies:
-  - python=3.11
+  - python=3.8
   - matplotlib
   - numpy
-  - trimesh
+  - trimesh[easy] # on MacOS may need to run pip install pyembree if embreex is still not avaiable
   - scipy
-  - pyglet
+  - pyglet=1.5.26
   - pip
   - pip:
-    - embreex
+      - pyembree
 
 #variables:
 #  VAR1: valueA
