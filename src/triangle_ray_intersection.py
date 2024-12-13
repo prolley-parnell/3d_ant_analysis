@@ -4,12 +4,8 @@ import concurrent.futures
 import trimesh
 import os
 
-from jedi.inference.gradual.typing import Tuple
-from scipy.sparse import csr_matrix
 from scipy.sparse.csgraph import dijkstra
 from typing import List, Tuple
-
-from scipy.spatial import distance_matrix
 
 logger = logging.getLogger(__name__)
 
@@ -69,10 +65,10 @@ class CollisionDetector:
         self._obj_folder = obj_folder
         self._obj_dict = {}
         self._read_obj_folder_mt(self._obj_folder)
-        link_names = link_names = ['thorax', 'neck', 'a_L1', 'a_L2', 'a_R1', 'a_R2', 'leg_f_L1', 'leg_f_L2', 'leg_f_R1', 'leg_f_R2', 'leg_m_L1', 'leg_m_L2', 'leg_m_R1', 'leg_m_R2', 'a_R0', 'a_L0', 'leg_f_R0', 'leg_f_L0', 'leg_m_R0', 'leg_m_L0', 'eye_L', 'eye_R', 'm_L0', 'm_R0', 'm_L1', 'm_R1']
+        link_names = ['thorax', 'neck', 'a_L1', 'a_L2', 'a_R1', 'a_R2', 'leg_f_L1', 'leg_f_L2', 'leg_f_R1', 'leg_f_R2', 'leg_m_L1', 'leg_m_L2', 'leg_m_R1', 'leg_m_R2', 'a_R0', 'a_L0', 'leg_f_R0', 'leg_f_L0', 'leg_m_R0', 'leg_m_L0', 'eye_L', 'eye_R', 'm_L0', 'm_R0', 'm_L1', 'm_R1']
         skeleton_connectivity = [(0, 1), (0, 17), (0, 16), (0, 19), (0, 18), (1, 14), (1, 15), (1, 22), (1, 23), (2, 3), (4, 5), (6, 7), (8, 9), (10, 11), (12, 13), (14, 4), (15, 2), (16, 8), (17, 6), (18, 12), (19, 10), (20, 1), (21, 1), (22, 24), (23, 25)]
         self._animal = AnimalStruct(skeleton_connectivity, link_names)
-        #self._distance_map = self._tree_search_connectivity(self._skeleton_connectivity, 0)
+
         self._pose_array = np.genfromtxt(pose_csv, delimiter=',', names=True, filling_values=np.nan, dtype=np.float64)
         self._pose_dict = self._pose_csv_to_dict(self._pose_array, self._animal.node_name_list)
         self._pose_ray_dict = {}
