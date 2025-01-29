@@ -13,7 +13,7 @@ dependencies:
   - pip
   - pip:
       - pyembree
-
+      - glooey
 #variables:
 #  VAR1: valueA
 #  VAR2: valueB
