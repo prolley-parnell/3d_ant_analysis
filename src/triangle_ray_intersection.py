@@ -175,11 +175,10 @@ class AnimalStruct:
         for name, pose in animal_pose.items():
             if not np.isnan(pose).any():
                 # sphere
-                print(pose)
                 geom = trimesh.creation.icosphere(radius=0.05)
                 geom.visual.face_colors = np.random.uniform(0, 1, (len(geom.faces), 3))
                 transform = tf.translation_matrix(pose)
-                scene.add_geometry(geom, transform=transform, node_name=name)
+                scene.add_geometry(geom, transform=transform, node_name=name, geom_name=name)
 
         return scene
 
@@ -249,11 +248,16 @@ class CollisionObj:
 
     def get_obj_trimesh(self, frame_idx: int):
         '''Return a trimesh of the object at the given frame index'''
-        return self._obj_dict[frame_idx]
+        if self.check_frame_exist(frame_idx):
+            return self._obj_dict[frame_idx]
+        else:
+            return None
 
     def generate_obj_scene(self, frame_idx: int):
         '''Return a trimesh scene object with the seed in the world frame'''
-        return trimesh.Scene([self.get_obj_trimesh(frame_idx)])
+        scene = trimesh.Scene()
+        scene.add_geometry(self.get_obj_trimesh(frame_idx), node_name="object", geom_name=str(frame_idx))
+        return scene
 
 
 
@@ -365,7 +369,7 @@ class Viewer:
     Example application that includes moving camera, scene and image update.
     """
 
-    def __init__(self, animal, frame_index):
+    def __init__(self, animal, object, frame_index):
         # create window with padding
         self.width, self.height = 480 * 2, 360
         window = self._create_window(width=self.width, height=self.height)
@@ -376,10 +380,14 @@ class Viewer:
         hbox.set_padding(5)
 
         # scene widget for changing camera location
+        self.object = object
         self.animal = animal
-        scene = animal.initialise_scene(frame_idx=frame_index)
         self.frame_range = animal.get_frame_range()
-        self.frame_index = self.frame_range[0]
+        self.frame_index = max(frame_index, self.frame_range[0])
+        # scene = animal.initialise_scene(frame_idx=self.frame_index)
+        scene = self.object.generate_obj_scene(frame_idx=frame_index)
+
+
         self.scene_widget1 = trimesh.viewer.SceneWidget(scene)
         self.scene_widget1._angles = [np.deg2rad(45), 0, 0]
         hbox.add(self.scene_widget1)
@@ -402,15 +410,19 @@ class Viewer:
 
     def callback(self, dt):
         # change camera location
-        self.scene_widget1._angles[2] += np.deg2rad(1)
-        self.scene_widget1.scene.set_camera(self.scene_widget1._angles)
+        # self.scene_widget1._angles[2] += np.deg2rad(1)
+        # self.scene_widget1.scene.set_camera(self.scene_widget1._angles)
 
-        self.frame_index = (self.frame_index + 1) % self.frame_range[1]
-        print(self.frame_index)
+
         #self.scene_widget1.scene = self.animal.update_scene(self.scene_widget1.scene, self.frame_index)
-        transform = tf.translation_matrix([0.1, 0.1, 2])
-        self.scene_widget1.scene.graph.update('thorax', transform=transform)
-        self.scene_widget1._draw()
+        # self.scene_widget1.scene.geometry['eye_L'].apply_translation([0.0, 0.1, 0.0])
+        # self.scene_widget1.do_draw()
+        # self.scene_widget1.scene.delete_geometry(str(self.frame_index))
+        self.frame_index = (self.frame_index + 1) % self.frame_range[1]
+        if self.object.check_frame_exist(self.frame_index):
+            existing_geometry = self.scene_widget1.scene.geometry
+            self.scene_widget1.scene.delete_geometry(existing_geometry)
+            self.scene_widget1.scene.add_geometry(self.object.get_obj_trimesh(self.frame_index), node_name="object", geom_name=str(self.frame_index))
 
         # change scene
         if len(self.scene_widget2.scene.graph.nodes) < 100:
@@ -418,7 +430,7 @@ class Viewer:
             geom.visual.face_colors = np.random.uniform(0, 1, (3,))
             geom.apply_translation(np.random.uniform(-0.3, 0.3, (3,)))
             self.scene_widget2.scene.add_geometry(geom)
-            self.scene_widget2._draw()
+            self.scene_widget2.do_draw()
 
 
     def _create_window(self, width, height):
