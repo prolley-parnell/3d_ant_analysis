@@ -8,7 +8,7 @@ import glooey
 import pyglet
 import trimesh.transformations as tf
 import trimesh.viewer
-from PyQt5.sip import array
+
 
 from scipy.sparse.csgraph import dijkstra
 from typing import List, Tuple
@@ -422,7 +422,10 @@ class Viewer:
         if self.object.check_frame_exist(self.frame_index):
             existing_geometry = self.scene_widget1.scene.geometry
             self.scene_widget1.scene.delete_geometry(existing_geometry)
+            self.scene_widget1.do_undraw()
+
             self.scene_widget1.scene.add_geometry(self.object.get_obj_trimesh(self.frame_index), node_name="object", geom_name=str(self.frame_index))
+            self.scene_widget1.do_draw()
 
         # change scene
         if len(self.scene_widget2.scene.graph.nodes) < 100:
