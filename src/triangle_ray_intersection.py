@@ -140,50 +140,70 @@ class AnimalStruct:
 
     def visualise_animal(self, frame_idx: int):
         ''' Return the trimesh scene for the animal skeleton for the given frame index'''
+        if self.check_frame_exist(frame_idx):
+            pose_ray_dict = self.get_pose_ray(frame_idx)
+            ray_origins = np.array([pose_ray_dict[link]['origin'] for link in pose_ray_dict.keys()])
+            ray_destination = np.array([pose_ray_dict[link]['dest'] for link in pose_ray_dict.keys()])
+            ray_visualise = trimesh.load_path(
+                np.hstack((ray_origins, ray_destination)).reshape(-1, 2, 3)
+            )
+            nodes = trimesh.points.PointCloud(ray_origins)
 
-        pose_ray_dict = self.get_pose_ray(frame_idx)
-        ray_origins = np.array([pose_ray_dict[link]['origin'] for link in pose_ray_dict.keys()])
-        ray_destination = np.array([pose_ray_dict[link]['dest'] for link in pose_ray_dict.keys()])
-        ray_visualise = trimesh.load_path(
-            np.hstack((ray_origins, ray_destination)).reshape(-1, 2, 3)
-        )
-        nodes = trimesh.points.PointCloud(ray_origins)
+            # create a unique color for each point
+            cloud_colors = np.array([trimesh.visual.random_color() for i in nodes])
 
-        # create a unique color for each point
-        cloud_colors = np.array([trimesh.visual.random_color() for i in nodes])
+            # set the colors on the random point and its nearest point to be the same
+            nodes.vertices_color = cloud_colors
+            # create a scene containing the mesh and two sets of points
+            scene = trimesh.Scene([ray_visualise, nodes])
+        else:
+            # create a scene containing no geometry
+            scene = trimesh.Scene()
+            scene.add_geometry(None)
 
-        # set the colors on the random point and its nearest point to be the same
-        nodes.vertices_color = cloud_colors
-
-        # create a scene containing the mesh and two sets of points
-        scene = trimesh.Scene([ray_visualise, nodes])
         return scene
 
     def get_frame_range(self):
         ''' Give [min, max] of the frame indices for the stored poses'''
         return [min(self._pose_dict.keys()), max(self._pose_dict.keys())]
 
-    def get_animal_pose(self, frame_idx: int) -> dict:
-        '''Return a dictionary that contains the name of the joint in the csv and the transform relative to the world pose at the given frame index'''
-        return {name: data['xyz'] for name, data in self._pose_dict[frame_idx].items()}
+    def get_animal_pose(self, frame_idx: int):
+        '''
+        Return a dictionary that contains the name of the joint in the csv and the transform relative to the world pose at the given frame index
+        :param frame_idx: frame index query
+        :type frame_idx: int
+        :return : dict if frame is present, otherwise None
+        '''
+
+        if self.check_frame_exist(frame_idx):
+            return {name: data['xyz'] for name, data in self._pose_dict[frame_idx].items()}
+        return None
 
     def initialise_scene(self, frame_idx: int):
 
         animal_pose = self.get_animal_pose(frame_idx)
         scene = trimesh.Scene()
 
-        for name, pose in animal_pose.items():
-            if not np.isnan(pose).any():
-                # sphere
-                geom = trimesh.creation.icosphere(radius=0.05)
-                geom.visual.face_colors = np.random.uniform(0, 1, (len(geom.faces), 3))
-                transform = tf.translation_matrix(pose)
-                scene.add_geometry(geom, transform=transform, node_name=name, geom_name=name)
-
+        if animal_pose is not None:
+            for name, pose in animal_pose.items():
+                if not np.isnan(pose).any():
+                    # sphere
+                    geom = trimesh.creation.icosphere(radius=0.05)
+                    geom.visual.face_colors = np.random.uniform(0, 1, (len(geom.faces), 3))
+                    transform = tf.translation_matrix(pose)
+                    scene.add_geometry(geom, transform=transform, node_name=name, geom_name=name)
+        else:
+            scene.add_geometry(None)
         return scene
 
     def update_scene(self, scene, frame_idx):
-        ''' Iterate through all nodes in the scene by joint name and update the positon to that given by the current frame index'''
+        ''' Iterate through all nodes in the scene by joint name and update the position to that given by the current frame index'''
+        # Undraw all in the scene
+
+
+        # for each name and pose for this frame,
+
+        # If the pose is listed then remove the geometry and add a new one in the new position
 
 
 
@@ -382,21 +402,20 @@ class Viewer:
         # scene widget for changing camera location
         self.object = object
         self.animal = animal
-        self.frame_range = animal.get_frame_range()
+        self.frame_range = self.animal.get_frame_range()
         self.frame_index = max(frame_index, self.frame_range[0])
-        # scene = animal.initialise_scene(frame_idx=self.frame_index)
-        scene = self.object.generate_obj_scene(frame_idx=frame_index)
 
+        scene = self.object.generate_obj_scene(frame_idx=self.frame_index)
 
         self.scene_widget1 = trimesh.viewer.SceneWidget(scene)
-        self.scene_widget1._angles = [np.deg2rad(45), 0, 0]
         hbox.add(self.scene_widget1)
 
         # scene widget for changing scene
-        scene = trimesh.Scene()
+        scene = self.animal.visualise_animal(frame_idx=self.frame_index)
         geom = trimesh.path.creation.box_outline((0.6, 0.6, 0.6))
         scene.add_geometry(geom)
         self.scene_widget2 = trimesh.viewer.SceneWidget(scene)
+        self.scene_widget2._angles = [np.deg2rad(45), 0, 0]
         hbox.add(self.scene_widget2)
 
         # # integrate with other widget than SceneWidget
@@ -410,15 +429,19 @@ class Viewer:
 
     def callback(self, dt):
         # change camera location
-        # self.scene_widget1._angles[2] += np.deg2rad(1)
-        # self.scene_widget1.scene.set_camera(self.scene_widget1._angles)
+        self.scene_widget2._angles[2] += np.deg2rad(1)
+        self.scene_widget2.scene.set_camera(self.scene_widget2._angles)
 
-
-        #self.scene_widget1.scene = self.animal.update_scene(self.scene_widget1.scene, self.frame_index)
-        # self.scene_widget1.scene.geometry['eye_L'].apply_translation([0.0, 0.1, 0.0])
-        # self.scene_widget1.do_draw()
-        # self.scene_widget1.scene.delete_geometry(str(self.frame_index))
         self.frame_index = (self.frame_index + 1) % self.frame_range[1]
+
+        if self.animal.check_frame_exist(self.frame_index):
+            # self.scene_widget2.scene = self.animal.update_scene(self.scene_widget2.scene, self.frame_index)
+            self.scene_widget2.do_undraw()
+            # self.scene_widget2.scene.geometry['eye_L'].apply_translation([0.0, 0.1, 0.0])
+            self.scene_widget2.scene = self.animal.visualise_animal(frame_idx=self.frame_index)
+            self.scene_widget2.do_draw()
+
+
         if self.object.check_frame_exist(self.frame_index):
             existing_geometry = self.scene_widget1.scene.geometry
             self.scene_widget1.scene.delete_geometry(existing_geometry)
@@ -428,12 +451,12 @@ class Viewer:
             self.scene_widget1.do_draw()
 
         # change scene
-        if len(self.scene_widget2.scene.graph.nodes) < 100:
-            geom = trimesh.creation.icosphere(radius=0.01)
-            geom.visual.face_colors = np.random.uniform(0, 1, (3,))
-            geom.apply_translation(np.random.uniform(-0.3, 0.3, (3,)))
-            self.scene_widget2.scene.add_geometry(geom)
-            self.scene_widget2.do_draw()
+        # if len(self.scene_widget2.scene.graph.nodes) < 100:
+        #     geom = trimesh.creation.icosphere(radius=0.01)
+        #     geom.visual.face_colors = np.random.uniform(0, 1, (3,))
+        #     geom.apply_translation(np.random.uniform(-0.3, 0.3, (3,)))
+        #     self.scene_widget2.scene.add_geometry(geom)
+        #     self.scene_widget2.do_draw()
 
 
     def _create_window(self, width, height):
