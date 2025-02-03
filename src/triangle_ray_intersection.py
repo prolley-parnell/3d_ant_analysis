@@ -138,9 +138,25 @@ class AnimalStruct:
         return self._pose_ray_dict[frame_idx]
 
 
-    def visualise_animal(self, frame_idx: int):
+    def generate_scene(self, frame_idx: int):
         ''' Return the trimesh scene for the animal skeleton for the given frame index
         :returns: A scene where the geometry is represented by a pointcloud and a set of paths defined by the
+                connecting edges of the skeleton
+        '''
+
+        animal_ray, animal_node = self.generate_geometry(frame_idx)
+        if animal_ray is not None:
+            scene = trimesh.Scene([animal_ray, animal_node])
+        else:
+            # create a scene containing no geometry
+            scene = trimesh.Scene()
+            scene.add_geometry(None)
+
+        return scene
+
+    def generate_geometry(self, frame_idx: int):
+        ''' Return the geometry objects for the animal skeleton for the given frame index
+        :returns: A trimesh object geometry where the geometry is represented by a pointcloud and a set of paths defined by the
                 connecting edges of the skeleton
         '''
         if self.check_frame_exist(frame_idx):
@@ -150,26 +166,16 @@ class AnimalStruct:
             ray_visualise = trimesh.load_path(
                 np.hstack((ray_origins, ray_destination)).reshape(-1, 2, 3)
             )
-            if not ray_origins.any():
-                scene = trimesh.Scene()
-                scene.add_geometry(None)
-                return scene
-
             nodes = trimesh.points.PointCloud(ray_origins)
-
             # create a unique color for each point
             cloud_colors = np.array([trimesh.visual.random_color() for i in nodes])
-
             # set the colors on the random point and its nearest point to be the same
             nodes.vertices_color = cloud_colors
-            # create a scene containing the mesh and two sets of points
-            scene = trimesh.Scene([ray_visualise, nodes])
-        else:
-            # create a scene containing no geometry
-            scene = trimesh.Scene()
-            scene.add_geometry(None)
 
-        return scene
+        else:
+            return None
+
+        return ray_visualise, nodes
 
     def get_frame_range(self):
         ''' Give [min, max] of the frame indices for the stored poses'''
@@ -264,17 +270,17 @@ class CollisionObj:
             frame_index = int(os.path.splitext(obj_path)[-2].split('_')[-1]) # Add to only get the number next to the obj extension
             return frame_index, trimesh.load(self._obj_folder + obj_path, force='mesh')
 
-    def get_obj_trimesh(self, frame_idx: int):
+    def generate_geometry(self, frame_idx: int):
         '''Return a trimesh of the object at the given frame index'''
         if self.check_frame_exist(frame_idx):
             return self._obj_dict[frame_idx]
         else:
             return None
 
-    def generate_obj_scene(self, frame_idx: int):
+    def generate_scene(self, frame_idx: int):
         '''Return a trimesh scene object with the seed in the world frame'''
         scene = trimesh.Scene()
-        scene.add_geometry(self.get_obj_trimesh(frame_idx), node_name="object", geom_name=str(frame_idx))
+        scene.add_geometry(self.generate_geometry(frame_idx), node_name="object", geom_name=str(frame_idx))
         return scene
 
 
@@ -301,7 +307,7 @@ class CollisionDetector:
                 np.hstack((location_array, location_array + normal_array * 5.0)).reshape(-1, 2, 3)
             )
         ax = trimesh.creation.axis(10)
-        scene = trimesh.Scene([self.obj.get_obj_trimesh(frame_idx), ax, ray_visualise])
+        scene = trimesh.Scene([self.obj.generate_geometry(frame_idx), ax, ray_visualise])
 
         return scene
 
@@ -317,7 +323,7 @@ class CollisionDetector:
 
         pose_ray_dict = self.animal.get_pose_ray(frame_idx)
         #ri = trimesh.ray.ray_pyembree.RayMeshIntersector(self._obj_dict[frame_idx])
-        ri = trimesh.ray.ray_triangle.RayMeshIntersector(self.obj.get_obj_trimesh(frame_idx))
+        ri = trimesh.ray.ray_triangle.RayMeshIntersector(self.obj.generate_geometry(frame_idx))
 
         index_tri, index_ray, location = ri.intersects_id(
             ray_origins=[pose_ray_dict[link]['origin'] for link in pose_ray_dict.keys()],
@@ -327,7 +333,7 @@ class CollisionDetector:
             return_locations=True
         )
 
-        surface_norm = self.obj.get_obj_trimesh(frame_idx).face_normals[index_tri]
+        surface_norm = self.obj.generate_geometry(frame_idx).face_normals[index_tri]
         return location, surface_norm
 
 
@@ -344,7 +350,7 @@ class Viewer:
 
     def __init__(self, animal, object, frame_index):
         # create window with padding
-        self.width, self.height = 480 * 2, 360
+        self.width, self.height = 960 * 2, 720
         window = self._create_window(width=self.width, height=self.height)
 
         gui = glooey.Gui(window)
@@ -358,13 +364,13 @@ class Viewer:
         self.frame_range = self.animal.get_frame_range()
         self.frame_index = max(frame_index, self.frame_range[0])
 
-        obj_scene = self.object.generate_obj_scene(frame_idx=self.frame_index)
+        obj_scene = self.object.generate_scene(frame_idx=self.frame_index)
 
         self.scene_widget_obj = trimesh.viewer.SceneWidget(obj_scene)
         hbox.add(self.scene_widget_obj)
 
         # scene widget for changing scene
-        animal_scene = self.animal.visualise_animal(frame_idx=self.frame_index)
+        animal_scene = self.animal.generate_scene(frame_idx=self.frame_index)
         geom = trimesh.path.creation.box_outline((0.6, 0.6, 0.6))
         animal_scene.add_geometry(geom)
         self.scene_widget_animal = trimesh.viewer.SceneWidget(animal_scene)
@@ -390,9 +396,7 @@ class Viewer:
             #Remove existing geometry from the scene
             self.scene_widget_animal.do_undraw()
             #Replace the current scene with the scene created in the animal class
-            self.scene_widget_animal.scene = self.animal.visualise_animal(frame_idx=self.frame_index)
-
-            self.scene_widget_animal.scene.set_camera()
+            self.scene_widget_animal.scene = self.animal.generate_scene(frame_idx=self.frame_index)
             #Redraw the new scene
             self.scene_widget_animal.do_draw()
             #todo: set the camera so it covers the approximate area and does not change size or distance to animal if nodes disappear
@@ -403,14 +407,98 @@ class Viewer:
             #Remove existing geometry from the scene
             self.scene_widget_obj.do_undraw()
             #Get the geometry from the dict in the obj class
-            geom = self.object.get_obj_trimesh(self.frame_index)
+            geom = self.object.generate_geometry(self.frame_index)
             self.scene_widget_obj.scene.add_geometry(geom, node_name="object", geom_name=str(self.frame_index))
             #Redraw the new scene
             self.scene_widget_obj.do_draw()
 
-        # scene_comb = self.scene_widget_obj.scene.append_scenes(self.scene_widget_animal.scene)
-        # self.scene_widget_combined.scene = scene_comb
-        # self.scene_widget_combined.do_draw()
+
+    def _create_window(self, width, height):
+        try:
+            config = pyglet.gl.Config(
+                sample_buffers=1, samples=4, depth_size=24, double_buffer=True
+            )
+            window = pyglet.window.Window(config=config, width=width, height=height)
+        except pyglet.window.NoSuchConfigException:
+            config = pyglet.gl.Config(double_buffer=True)
+            window = pyglet.window.Window(config=config, width=width, height=height)
+
+        @window.event
+        def on_key_press(symbol, modifiers):
+            if modifiers == 0:
+                if symbol == pyglet.window.key.Q:
+                    window.close()
+
+        return window
+
+class CombiViewer:
+
+    """
+    Example application that includes moving camera, scene and image update.
+    """
+
+    def __init__(self, animal, object, frame_index):
+        # create window with padding
+        self.width, self.height = 960, 720
+        window = self._create_window(width=self.width, height=self.height)
+
+        gui = glooey.Gui(window)
+
+        hbox = glooey.HBox()
+        hbox.set_padding(5)
+
+        # scene widget for changing camera location
+        self.object = object
+        self.animal = animal
+        self.frame_range = self.animal.get_frame_range()
+        self.frame_index = max(frame_index, self.frame_range[0])
+
+        #Generate a scene with the combined geometries
+        scene = trimesh.Scene()
+        obj_geom = self.object.generate_geometry(frame_idx=self.frame_index)
+        animal_ray, animal_node = self.animal.generate_geometry(frame_idx=self.frame_index)
+
+        # Replace the current scene with the scene created in the animal class
+        scene.add_geometry(animal_ray, node_name="animal_ray", geom_name=str(self.frame_index))
+        scene.add_geometry(animal_node, node_name="animal_node", geom_name=str(self.frame_index))
+        scene.add_geometry(obj_geom, node_name="object", geom_name=str(self.frame_index))
+
+        self.scene_widget = trimesh.viewer.SceneWidget(scene)
+        hbox.add(self.scene_widget)
+
+        gui.add(hbox)
+
+        pyglet.clock.schedule_interval(self.callback, 1.0 / 10)
+        pyglet.app.run()
+
+    def callback(self, dt):
+        #Update the frame counter
+        self.frame_index = (self.frame_index + 1) % self.frame_range[1]
+
+
+
+        #Check if the frame is present in the dict of animal frames
+        if self.animal.check_frame_exist(self.frame_index):
+            # Remove existing geometry from the scene
+            self.scene_widget.do_undraw()
+            animal_ray, animal_node = self.animal.generate_geometry(frame_idx=self.frame_index)
+
+            #Replace the current scene with the scene created in the animal class
+            self.scene_widget.scene.add_geometry(animal_ray, node_name="animal_ray", geom_name=str(self.frame_index))
+            self.scene_widget.scene.add_geometry(animal_node, node_name="animal_node", geom_name=str(self.frame_index))
+
+        #Check if the frame is present in the dict of object frames
+        if self.object.check_frame_exist(self.frame_index):
+            # Remove existing geometry from the scene
+            self.scene_widget.do_undraw()
+            #Get the geometry from the dict in the obj class
+            obj_geom = self.object.generate_geometry(self.frame_index)
+            self.scene_widget.scene.add_geometry(obj_geom, node_name="object", geom_name=str(self.frame_index))
+
+        #Redraw the new scene
+        self.scene_widget.do_draw()
+
+
 
     def _create_window(self, width, height):
         try:
