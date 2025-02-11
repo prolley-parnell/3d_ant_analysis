@@ -16,7 +16,8 @@ class AnimalStruct:
     def __init__(self,
                  connectivity_list: List[Tuple[int, int]],
                  node_name_list: List[str],
-                 pose_csv: str
+                 pose_csv: str,
+                 units: str = "mm"
                  ):
         ''' Initialise a holder for the structure of the animal skeleton
         :param connectivity_list: List of tuples containing pairs of nodes with a connection in the skeleton
@@ -26,6 +27,7 @@ class AnimalStruct:
         self._connectivity_list = connectivity_list
         self.node_name_list = node_name_list
         self._connectivity_dict = {}
+        self._units = units
         self._generate_connectivity_dict()
         self._pose_array = np.genfromtxt(pose_csv, delimiter=',', names=True, filling_values=np.nan, dtype=np.float64)
         self._pose_dict = self._pose_csv_to_dict(self._pose_array, self.node_name_list)
@@ -170,7 +172,13 @@ class AnimalStruct:
             ray_visualise = trimesh.load_path(
                 np.hstack((ray_origins, ray_destination)).reshape(-1, 2, 3)
             )
+
             nodes = trimesh.points.PointCloud(ray_origins)
+
+            #Set the units
+            ray_visualise.units = self._units
+            nodes.units = self._units
+
             # create a unique color for each point
             cloud_colors = np.array([trimesh.visual.random_color() for i in nodes])
             # set the colors on the random point and its nearest point to be the same

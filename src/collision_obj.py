@@ -2,6 +2,7 @@ import logging
 import concurrent.futures
 import trimesh
 import os
+import numpy as np
 
 # import trimesh.viewer
 
@@ -10,13 +11,14 @@ logger = logging.getLogger(__name__)
 
 class CollisionObj:
 
-    def __init__(self, obj_folder: str):
+    def __init__(self, obj_folder: str, units: str = "mm"):
         '''
         Initialise an object given by a folder of "obj" files into a dictionary of trimesh objects.
         :param obj_folder: Path to the folder containing the objects
         '''
         self._obj_folder = obj_folder
         self._obj_dict = {}
+        self._units = units
         self._read_obj_folder_mt(self._obj_folder)
 
     def check_frame_exist(self, frame_idx):
@@ -53,7 +55,8 @@ class CollisionObj:
                     logger.error('%r generated an exception: %s' % (path_input, exc))
                 else:
                     logger.info('Frame index is %d ' % frame_idx)
-                    self._obj_dict[frame_idx] = trimesh_obj
+                    if not trimesh_obj.is_empty:
+                        self._obj_dict[frame_idx] = trimesh_obj
 
 
     def _single_obj_to_trimesh(self, obj_path: str):
@@ -62,7 +65,15 @@ class CollisionObj:
             raise Exception("Folder {} ignored".format(self._obj_folder + obj_path))
         if os.path.splitext(obj_path)[-1] in [".obj", ".OBJ"] and not obj_path.startswith('.'):
             frame_index = int(os.path.splitext(obj_path)[-2].split('_')[-1]) # Add to only get the number next to the obj extension
-            return frame_index, trimesh.load(self._obj_folder + obj_path, force='mesh')
+            trimesh_obj = trimesh.load_mesh(self._obj_folder + obj_path, 'obj')
+            # trimesh_obj.vertices = np.column_stack((trimesh_obj.vertices[:, 1], trimesh_obj.vertices[:, 0], trimesh_obj.vertices[:, 2]))
+            if trimesh_obj.units is None:
+                trimesh_obj.units = self._units
+            return frame_index, trimesh_obj
+
+    def get_frame_range(self):
+        ''' Give [min, max] of the frame indices for the stored poses'''
+        return [min(self._obj_dict.keys()), max(self._obj_dict.keys())]
 
     def generate_geometry(self, frame_idx: int):
         '''Return a trimesh of the object at the given frame index'''
