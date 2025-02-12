@@ -5,7 +5,7 @@ import glooey
 import pyglet
 import trimesh.viewer
 from src.animal import AnimalStruct
-from src.collision_obj import CollisionObj
+from src.object import CollisionObj
 
 
 class Viewer:
