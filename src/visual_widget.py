@@ -75,12 +75,15 @@ class Viewer:
             animal_list = [k for k in self.scene_widget.scene.geometry.keys() if "animal" in k]
             self.scene_widget.scene.delete_geometry(animal_list)
 
-            animal_ray, animal_node = self.animal.generate_geometry(frame_idx=self.frame_index)
+            animal_geom = self.animal.generate_geometry(frame_idx=self.frame_index)
+            if animal_geom is not None:
+                animal_ray, animal_node = animal_geom
 
-            #Replace the current scene with the scene created in the animal class
-            self.scene_widget.scene.add_geometry(animal_ray, node_name="animal_ray", geom_name=str(self.frame_index)+"_animal_ray")
-            self.scene_widget.scene.add_geometry(animal_node, node_name="animal_node", geom_name=str(self.frame_index)+"_animal_node")
-
+                # Replace the current scene with the scene created in the animal class
+                self.scene_widget.scene.add_geometry(animal_ray, node_name="animal_ray",
+                                   geom_name=str(self.frame_index) + "_animal_ray")
+                self.scene_widget.scene.add_geometry(animal_node, node_name="animal_node",
+                                   geom_name=str(self.frame_index) + "_animal_node")
 
         #Check if the frame is present in the dict of object frames
         if self.object.check_frame_exist(self.frame_index):

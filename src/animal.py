@@ -145,9 +145,9 @@ class AnimalStruct:
         if not self._pose_ray_dict.keys().__contains__(frame_idx):
             if self.check_frame_exist(frame_idx):
                 self._pose_ray_dict[frame_idx] = self._generate_rays(frame_idx)
-                return self._pose_ray_dict[frame_idx]
-            else:
-                return {}
+
+        return self._pose_ray_dict[frame_idx]
+
 
 
     def generate_scene(self, frame_idx: int):
@@ -156,8 +156,9 @@ class AnimalStruct:
                 connecting edges of the skeleton
         '''
 
-        animal_ray, animal_node = self.generate_geometry(frame_idx)
-        if animal_ray is not None:
+        animal_geometry = self.generate_geometry(frame_idx)
+        if animal_geometry is not None:
+            animal_ray, animal_node = animal_geometry
             scene = trimesh.Scene([animal_ray, animal_node])
         else:
             # create a scene containing no geometry
