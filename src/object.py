@@ -67,6 +67,8 @@ class CollisionObj:
             frame_index = int(os.path.splitext(obj_path)[-2].split('_')[-1]) # Add to only get the number next to the obj extension
             trimesh_obj = trimesh.load_mesh(self._obj_folder + obj_path, 'obj')
             # trimesh_obj.vertices = np.column_stack((trimesh_obj.vertices[:, 1], trimesh_obj.vertices[:, 0], trimesh_obj.vertices[:, 2]))
+            if trimesh_obj.is_empty:
+                raise Exception("Mesh {} ignored, file empty".format(self._obj_folder + obj_path))
             if trimesh_obj.units is None:
                 trimesh_obj.units = self._units
             return frame_index, trimesh_obj

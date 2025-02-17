@@ -27,21 +27,31 @@ class Viewer:
         # scene widget for changing camera location
         self.object = object
         self.animal = animal
-        self.frame_range = self.object.get_frame_range()
+        obj_frame_range = self.object.get_frame_range()
+        animal_frame_range = self.animal.get_frame_range()
+        min_frame = min(obj_frame_range[0], animal_frame_range[0])
+        max_frame = max(obj_frame_range[1], animal_frame_range[1])
+        self.frame_range = (min_frame, max_frame)
         self.frame_index = max(frame_index, self.frame_range[0])
 
         #Generate a scene with the combined geometries
         scene = trimesh.Scene()
+
         obj_geom = self.object.generate_geometry(frame_idx=self.frame_index)
-        animal_ray, animal_node = self.animal.generate_geometry(frame_idx=self.frame_index)
+        if obj_geom is not None:
+            scene.add_geometry(obj_geom, node_name="object", geom_name=str(self.frame_index) + "_object")
 
-        # Replace the current scene with the scene created in the animal class
-        scene.add_geometry(animal_ray, node_name="animal_ray",
-                                             geom_name=str(self.frame_index) + "_animal_ray")
-        scene.add_geometry(animal_node, node_name="animal_node",
-                                             geom_name=str(self.frame_index) + "_animal_node")
+        animal_geom = self.animal.generate_geometry(frame_idx=self.frame_index)
+        if animal_geom is not None:
+            animal_ray, animal_node = animal_geom
 
-        scene.add_geometry(obj_geom, node_name="object", geom_name=str(self.frame_index)+"_object")
+            # Replace the current scene with the scene created in the animal class
+            scene.add_geometry(animal_ray, node_name="animal_ray",
+                                                 geom_name=str(self.frame_index) + "_animal_ray")
+            scene.add_geometry(animal_node, node_name="animal_node",
+                                                 geom_name=str(self.frame_index) + "_animal_node")
+
+
         # scene.add_geometry(trimesh.creation.axis(origin_size=0.04, axis_length=0.4))
         self.scene_widget = trimesh.viewer.SceneWidget(scene)
         hbox.add(self.scene_widget)

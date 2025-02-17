@@ -46,13 +46,19 @@ class AnimalStruct:
             else:
                 logging.debug("Frame column not included in the CSV")
 
-            pose_dict[frame_i] = {}
 
+            temp_dict = {}
+            all_nan_flag = True
             for name in link_names:
-                pose_dict[frame_i][name] = {}
-                pose_dict[frame_i][name]['xyz'] = np.array(
+                temp_dict[name] = {}
+                temp_dict[name]['xyz'] = np.array(
                     [row[name + "_x"], row[name + "_y"], row[name + "_z"]])
-                pose_dict[frame_i][name]['score'] = row[name + "_score"]
+                temp_dict[name]['score'] = row[name + "_score"]
+                if temp_dict[name]['score'] > 0:
+                    all_nan_flag = False
+
+            if not all_nan_flag:
+                pose_dict[frame_i] = temp_dict
 
         return pose_dict
 
@@ -137,8 +143,11 @@ class AnimalStruct:
         }
         '''
         if not self._pose_ray_dict.keys().__contains__(frame_idx):
-            self._pose_ray_dict[frame_idx] = self._generate_rays(frame_idx)
-        return self._pose_ray_dict[frame_idx]
+            if self.check_frame_exist(frame_idx):
+                self._pose_ray_dict[frame_idx] = self._generate_rays(frame_idx)
+                return self._pose_ray_dict[frame_idx]
+            else:
+                return {}
 
 
     def generate_scene(self, frame_idx: int):
@@ -165,7 +174,9 @@ class AnimalStruct:
         if self.check_frame_exist(frame_idx):
             pose_ray_dict = self.get_pose_ray(frame_idx)
 
-            # if not np.isnan(pose_ray_dict).any():
+            if len(pose_ray_dict) == 0:
+                logger.error("No rays present for animal at frame {}".format(frame_idx))
+                return None
 
             ray_origins = np.array([pose_ray_dict[link]['origin'] for link in pose_ray_dict.keys()])
             ray_destination = np.array([pose_ray_dict[link]['dest'] for link in pose_ray_dict.keys()])
@@ -183,9 +194,6 @@ class AnimalStruct:
             cloud_colors = np.array([trimesh.visual.random_color() for i in nodes])
             # set the colors on the random point and its nearest point to be the same
             nodes.vertices_color = cloud_colors
-
-            # else:
-            #     return None
 
         else:
             return None
@@ -206,7 +214,7 @@ class AnimalStruct:
 
         if self.check_frame_exist(frame_idx):
             return {name: data['xyz'] for name, data in self._pose_dict[frame_idx].items()}
-        return None
+        return {}
 
     def initialise_scene(self, frame_idx: int):
 
