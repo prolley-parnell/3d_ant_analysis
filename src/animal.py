@@ -5,17 +5,17 @@ import trimesh
 import trimesh.transformations as tf
 import trimesh.viewer
 
-
 from scipy.sparse.csgraph import dijkstra
 from typing import List, Tuple
+
+from src.skeleton import SkeletonToml
 
 logger = logging.getLogger(__name__)
 
 class AnimalStruct:
 
     def __init__(self,
-                 connectivity_list: List[Tuple[int, int]],
-                 node_name_list: List[str],
+                 toml_path: str,
                  pose_csv: str,
                  units: str = "mm"
                  ):
@@ -24,8 +24,9 @@ class AnimalStruct:
         :param node_name_list: List of node names, the order of this list corresponds to the numbering of nodes in the connectivity_list
         :param pose_csv: Path to the csv file containing the pose of the skeleton
         '''
-        self._connectivity_list = connectivity_list
-        self.node_name_list = node_name_list
+        sk = SkeletonToml(toml_path)
+        self._connectivity_list = sk.skeleton_connectivity
+        self.node_name_list = sk.link_name_list
         self._connectivity_dict = {}
         self._units = units
         self._generate_connectivity_dict()
@@ -36,7 +37,7 @@ class AnimalStruct:
 
 
     @staticmethod
-    def _pose_csv_to_dict(pose_array, link_names: List[str]):
+    def _pose_csv_to_dict(pose_array, link_names: list[str]):
         ''' Assumes the structure is _x,_y, _z, _score'''
 
         pose_dict = {}

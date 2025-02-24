@@ -40,7 +40,7 @@ class CollisionObj:
 
 
     def _read_obj_folder_mt(self, obj_dir_path: str):
-        ''' Given a path to a folder containing ".obj" files with the name of the corresponding frame, load these and
+        ''' Given a path to a folder containing ".obj" or ".dae" files with the name of the corresponding frame, load these and
         convert to a dict of trimesh'''
         # scan all the OBJ file names in this directory
         path_list = os.listdir(obj_dir_path)
@@ -60,18 +60,24 @@ class CollisionObj:
 
 
     def _single_obj_to_trimesh(self, obj_path: str):
-        ''' Convert the obj at the given path to a trimesh object and return the object and frame index '''
+        ''' Convert the dae at the given path to a trimesh object and return the object and frame index '''
         if os.path.isdir(self._obj_folder + obj_path):
             raise Exception("Folder {} ignored".format(self._obj_folder + obj_path))
-        if os.path.splitext(obj_path)[-1] in [".obj", ".OBJ"] and not obj_path.startswith('.'):
+        if os.path.splitext(obj_path)[-1] in [".dae", ".DAE"] and not obj_path.startswith('.'):
+            frame_index = int(os.path.splitext(obj_path)[-2].split('_')[-1]) # Add to only get the number next to the obj extension
+            trimesh_obj = trimesh.load_mesh(self._obj_folder + obj_path, 'dae')
+        elif os.path.splitext(obj_path)[-1] in [".obj", ".OBJ"] and not obj_path.startswith('.'):
             frame_index = int(os.path.splitext(obj_path)[-2].split('_')[-1]) # Add to only get the number next to the obj extension
             trimesh_obj = trimesh.load_mesh(self._obj_folder + obj_path, 'obj')
+        else:
+            raise Exception("File {} ignored, not .dae or .obj file".format(self._obj_folder + obj_path))
+
             # trimesh_obj.vertices = np.column_stack((trimesh_obj.vertices[:, 1], trimesh_obj.vertices[:, 0], trimesh_obj.vertices[:, 2]))
-            if trimesh_obj.is_empty:
-                raise Exception("Mesh {} ignored, file empty".format(self._obj_folder + obj_path))
-            if trimesh_obj.units is None:
-                trimesh_obj.units = self._units
-            return frame_index, trimesh_obj
+        if trimesh_obj.is_empty:
+            raise Exception("Mesh {} ignored, file empty".format(self._obj_folder + obj_path))
+        if trimesh_obj.units is None:
+            trimesh_obj.units = self._units
+        return frame_index, trimesh_obj
 
     def get_frame_range(self):
         ''' Give [min, max] of the frame indices for the stored poses'''
