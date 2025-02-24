@@ -6,7 +6,6 @@ import trimesh.transformations as tf
 import trimesh.viewer
 
 from scipy.sparse.csgraph import dijkstra
-from typing import List, Tuple
 
 from src.skeleton import SkeletonToml
 

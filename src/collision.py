@@ -2,7 +2,6 @@ import logging
 import numpy as np
 import trimesh
 
-# import trimesh.viewer
 from src.animal import AnimalStruct
 from src.object import CollisionObj
 
