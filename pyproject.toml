@@ -1,0 +1,18 @@
+[project]
+name = "3d-ant-analysis"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "glooey>=0.3.6",
+    "matplotlib>=3.10.0",
+    "networkx>=3.4.2",
+    "numpy>=2.2.3",
+    "pip>=25.0.1",
+    "pycollada>=0.9",
+    "pyglet==1.5.27",
+    "scipy>=1.15.2",
+    "toml>=0.10.2",
+    "trimesh>=4.6.2",
+]
