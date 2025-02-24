@@ -2,12 +2,8 @@ import logging
 import concurrent.futures
 import trimesh
 import os
-import numpy as np
-
-# import trimesh.viewer
 
 logger = logging.getLogger(__name__)
-
 
 class CollisionObj:
 
@@ -95,3 +91,72 @@ class CollisionObj:
         scene = trimesh.Scene()
         scene.add_geometry(self.generate_geometry(frame_idx), node_name="object", geom_name=str(frame_idx))
         return scene
+
+
+class CollisionObjTransform:
+    def __init__(self, obj_folder: str, units: str = "mm"):
+        '''
+        Initialise an object given by a folder of "obj" files into a dictionary of trimesh objects.
+        Convert from dict of trimesh into a single mesh and a dict of transforms
+        :param obj_folder: Path to the folder containing the objects
+        '''
+        self._obj_folder = obj_folder
+        self._units = units
+        co = CollisionObj(obj_folder, units)
+        self._obj_mesh, self._obj_transforms = convertCO(co)
+
+
+
+    def check_frame_exist(self, frame_idx):
+        ''' If frame index is not present in the object dictionary, return false'''
+        if not self._obj_dict.keys().__contains__(frame_idx):
+            logger.debug('Frame index {} not present in the object mesh dictionary \n'.format(frame_idx))
+            return False
+        return True
+
+    def get_frame_range(self):
+        ''' Give [min, max] of the frame indices for the stored poses'''
+        return [min(self._obj_dict.keys()), max(self._obj_dict.keys())]
+
+    def generate_geometry(self, frame_idx: int):
+        '''Return a trimesh of the object at the given frame index'''
+        if self.check_frame_exist(frame_idx):
+            return self._obj_dict[frame_idx]
+        else:
+            return None
+
+    def generate_scene(self, frame_idx: int):
+        '''Return a trimesh scene object with the seed in the world frame'''
+        scene = trimesh.Scene()
+        scene.add_geometry(self.generate_geometry(frame_idx), node_name="object", geom_name=str(frame_idx))
+        return scene
+
+
+def convertCO(co: CollisionObj):
+    ''' Convert from a CollisionObject with a dict of objects, into a single trimesh object and a dict of transforms'''
+
+    output_mesh = trimesh.Trimesh()
+    output_transforms = dict()
+
+    #First find transforms
+    sorted_frames = sorted(co._obj_dict.keys())
+
+    geom_prior = None
+    for frame in sorted_frames:
+        geom_base = co.generate_geometry(frame)
+
+        if geom_prior is None:
+            if geom_base is None:
+                raise Exception("No prior geometry for frame {}".format(frame))
+            else:
+                output_transforms[frame] = geom_base.principal_inertia_transform
+                geom_prior = geom_base
+        else:
+            T, cost = geom_prior.register(geom_base)
+            print(cost)
+            output_transforms[frame] = T
+
+
+
+
+    return output_mesh, output_transforms

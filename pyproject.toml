@@ -12,6 +12,7 @@ dependencies = [
     "pip>=25.0.1",
     "pycollada>=0.9",
     "pyglet==1.5.27",
+    "rtree>=1.3.0",
     "scipy>=1.15.2",
     "toml>=0.10.2",
     "trimesh>=4.6.2",
