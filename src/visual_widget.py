@@ -150,10 +150,11 @@ class MultiViewer:
         #Generate a scene with the combined geometries
         scene = trimesh.Scene()
 
-        scene = self.update_obj(scene, self.object_list, self.frame_index)
-        scene = self.update_animal(scene, self.animal_list, self.frame_index)
 
-        # scene.add_geometry(trimesh.creation.axis(origin_size=0.04, axis_length=0.4))
+        scene = self.update_animal(scene, self.animal_list, self.frame_index)
+        scene = self.update_obj(scene, self.object_list, self.frame_index)
+
+        scene.add_geometry(trimesh.creation.axis(origin_size=1, axis_length=4))
         self.scene_widget = trimesh.viewer.SceneWidget(scene)
         hbox.add(self.scene_widget)
 
@@ -174,6 +175,7 @@ class MultiViewer:
                 # Get the geometry from the dict in the obj class
                 obj_geom = obj.generate_geometry(frame_idx)
                 scene.add_geometry(obj_geom, node_name="object"+str(obj_id), geom_name=str(frame_idx)+"_object_"+str(obj_id))
+                # scene.add_geometry(trimesh.creation.axis(origin_size=1, axis_length=4), transform=obj_geom.principal_inertia_transform)
 
         return scene
 

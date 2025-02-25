@@ -16,18 +16,17 @@ class AnimalStruct:
     def __init__(self,
                  toml_path: str,
                  pose_csv: str,
-                 units: str = "mm"
+                 input_units: str = "mm"
                  ):
-        ''' Initialise a holder for the structure of the animal skeleton
-        :param connectivity_list: List of tuples containing pairs of nodes with a connection in the skeleton
-        :param node_name_list: List of node names, the order of this list corresponds to the numbering of nodes in the connectivity_list
+        """ Initialise a holder for the structure of the animal skeleton
+        :param toml_path: Path to the toml file containing the structure of the animal skeleton
         :param pose_csv: Path to the csv file containing the pose of the skeleton
-        '''
+        """
         sk = SkeletonToml(toml_path)
         self._connectivity_list = sk.skeleton_connectivity
         self.node_name_list = sk.link_name_list
         self._connectivity_dict = {}
-        self._units = units
+        self._units = input_units
         self._generate_connectivity_dict()
         self._pose_array = np.genfromtxt(pose_csv, delimiter=',', names=True, filling_values=np.nan, dtype=np.float64)
         self._pose_dict = self._pose_csv_to_dict(self._pose_array, self.node_name_list)
@@ -36,8 +35,8 @@ class AnimalStruct:
 
 
     @staticmethod
-    def _pose_csv_to_dict(pose_array, link_names: list[str]):
-        ''' Assumes the structure is _x,_y, _z, _score'''
+    def _pose_csv_to_dict(pose_array, link_names: list[str]) -> dict:
+        """ Assumes the structure is _x,_y, _z, _score"""
 
         pose_dict = {}
         for frame_i, row in enumerate(pose_array):
@@ -62,8 +61,8 @@ class AnimalStruct:
 
         return pose_dict
 
-    def _generate_connectivity_dict(self, reference_index=0):
-        ''' Create a dictionary object that can be used to reference nodes by name to find their connectivity, and distance to the base node'''
+    def _generate_connectivity_dict(self, reference_index=0) -> None:
+        """ Create a dictionary object that can be used to reference nodes by name to find their connectivity, and distance to the base node"""
 
         distance_list, connectivity_map = self._tree_search_connectivity(reference_index)
 
@@ -80,8 +79,8 @@ class AnimalStruct:
                                             'parent': parent }
 
     def _tree_search_connectivity(self, reference_index: int):
-        ''' Use a connectivity list ([(node_1, node_2), (node_3, node_2)])  and find number of steps to reach reference
-        index. Returns a list of distances per node'''
+        """ Use a connectivity list ([(node_1, node_2), (node_3, node_2)])  and find number of steps to reach reference
+        index. Returns a list of distances per node"""
 
         n_node = len(np.unique(self._connectivity_list))
 
@@ -94,9 +93,9 @@ class AnimalStruct:
 
         return dist_list, connectivity_map
 
-    def _generate_rays(self, frame_idx):
-        ''' For the skeleton at the frame index provided, generate a series of origins and vector axes to represent the
-         links between the key nodes'''
+    def _generate_rays(self, frame_idx) -> dict:
+        """ For the skeleton at the frame index provided, generate a series of origins and vector axes to represent the
+         links between the key nodes"""
         ray_dict = {}
 
         # Find all links in skeleton and assign names
@@ -126,22 +125,22 @@ class AnimalStruct:
 
         return ray_dict
 
-    def check_frame_exist(self, frame_idx):
-        ''' If frame index is not present in the pose dictionary, return false'''
+    def check_frame_exist(self, frame_idx) -> bool:
+        """ If frame index is not present in the pose dictionary, return false"""
         if not self._pose_dict.keys().__contains__(frame_idx):
             logger.debug('Frame index {} not present in the animal skeleton dictionary \n'.format(frame_idx))
             return False
         return True
 
-    def get_pose_ray(self, frame_idx: int):
-        '''
+    def get_pose_ray(self, frame_idx: int) -> dict:
+        """
         Returns a dictionary object with the following structure:
         dict[ray_name: String with naming convention "nodeA_to_nodeB"]{
         origin: Origin of the ray
         vector: Vector of origin to destination
         dest: Destination of the ray
         }
-        '''
+        """
         if not self._pose_ray_dict.keys().__contains__(frame_idx):
             if self.check_frame_exist(frame_idx):
                 self._pose_ray_dict[frame_idx] = self._generate_rays(frame_idx)
@@ -150,11 +149,11 @@ class AnimalStruct:
 
 
 
-    def generate_scene(self, frame_idx: int):
-        ''' Return the trimesh scene for the animal skeleton for the given frame index
+    def generate_scene(self, frame_idx: int) -> trimesh.scene.Scene:
+        """ Return the trimesh scene for the animal skeleton for the given frame index
         :returns: A scene where the geometry is represented by a pointcloud and a set of paths defined by the
                 connecting edges of the skeleton
-        '''
+        """
 
         animal_geometry = self.generate_geometry(frame_idx)
         if animal_geometry is not None:
@@ -168,10 +167,10 @@ class AnimalStruct:
         return scene
 
     def generate_geometry(self, frame_idx: int):
-        ''' Return the geometry objects for the animal skeleton for the given frame index
+        """ Return the geometry objects for the animal skeleton for the given frame index
         :returns: A trimesh object geometry where the geometry is represented by a pointcloud and a set of paths defined by the
                 connecting edges of the skeleton
-        '''
+        """
         if self.check_frame_exist(frame_idx):
             pose_ray_dict = self.get_pose_ray(frame_idx)
 
@@ -201,23 +200,23 @@ class AnimalStruct:
 
         return ray_visualise, nodes
 
-    def get_frame_range(self):
-        ''' Give [min, max] of the frame indices for the stored poses'''
+    def get_frame_range(self) -> list:
+        """ Give [min, max] of the frame indices for the stored poses"""
         return [min(self._pose_dict.keys()), max(self._pose_dict.keys())]
 
-    def get_animal_pose(self, frame_idx: int):
-        '''
+    def get_animal_pose(self, frame_idx: int) -> dict:
+        """
         Return a dictionary that contains the name of the joint in the csv and the transform relative to the world pose at the given frame index
-        :param frame_idx: frame index query
+        :param frame_idx: frame number to query
         :type frame_idx: int
-        :return: dict if frame is present, otherwise None
-        '''
+        :return: dict if frame is present, otherwise empty dict
+        """
 
         if self.check_frame_exist(frame_idx):
             return {name: data['xyz'] for name, data in self._pose_dict[frame_idx].items()}
         return {}
 
-    def initialise_scene(self, frame_idx: int):
+    def initialise_scene(self, frame_idx: int) -> trimesh.scene.Scene:
 
         animal_pose = self.get_animal_pose(frame_idx)
         scene = trimesh.Scene()
