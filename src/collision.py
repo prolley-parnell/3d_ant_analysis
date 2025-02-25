@@ -1,19 +1,42 @@
 import logging
+from typing import Optional
+
 import numpy as np
 import trimesh
 
 from src.animal import AnimalStruct
 from src.object import CollisionObj
 
+
 logger = logging.getLogger(__name__)
 
 
 class CollisionDetector:
 
-    def __init__(self, obj_folder: str, skeleton_toml_path: str, pose_csv: str):
-        self._obj_folder = obj_folder
-        self.animal = AnimalStruct(skeleton_toml_path, pose_csv)
-        self.obj = CollisionObj(self._obj_folder)
+    def __init__(self,
+                 animal: Optional[AnimalStruct]  = None ,
+                 obj: Optional[CollisionObj]  = None,
+                 obj_folder: Optional[str] = None,
+                 skeleton_toml_path: Optional[str] = None,
+                 pose_csv: Optional[str] = None
+                 ):
+
+        if animal is None:
+            if skeleton_toml_path is not None and pose_csv is not None:
+                self.animal = AnimalStruct(skeleton_toml_path, pose_csv)
+            else:
+                raise Exception("No animal, skeleton_toml_path, or pose_csv included")
+        else:
+            self.animal = animal
+
+        if obj is None:
+            if obj_folder is not None:
+                self.obj = CollisionObj(obj_folder)
+            else:
+                raise Exception("No object included, and no path included")
+        else:
+            self.obj = obj
+
 
     def visualise_collision(self, frame_idx: int):
         ''' Give a frame index, calculate collision points then visualise'''
@@ -38,7 +61,7 @@ class CollisionDetector:
         point of collision.
         '''
         if not self.check_frame_exist(frame_idx):
-            logger.warning('Could not find collision for frame index {}'.format(frame_idx))
+            logger.warning('Could not find collision for frame index {} because both object and animal are not in this frame'.format(frame_idx))
             return None
 
         pose_ray_dict = self.animal.get_pose_ray(frame_idx)

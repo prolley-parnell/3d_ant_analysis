@@ -6,6 +6,7 @@ import argparse
 from pathlib import Path
 from src.animal import AnimalStruct
 from src.object import CollisionObj
+from src.collision import CollisionDetector
 
 
 if __name__ == '__main__':
@@ -33,6 +34,16 @@ if __name__ == '__main__':
     FOLDER = Path(args.folder) / PREFIX
     SESSION = args.session
 
+    OUTPUT_FOLDER = FOLDER / 'outputs'
 
-## Generate the Animal and Object Instances
+    obj_folder = OUTPUT_FOLDER / 'segmentation'
+    # obj_folder = OUTPUT_FOLDER / 'segmentation' / SESSION / OBJECT_NAME
+    track_folder = OUTPUT_FOLDER / 'tracking'
+    # track_folder = OUTPUT_FOLDER / 'tracking' / SESSION /
 
+    track_list = sorted(track_folder.glob(f'{PREFIX}*session{SESSION}*.csv'))
+
+    ## Generate the Animal and Object Instances
+    for track in track_folder.iterdir():
+
+        animal = AnimalStruct(args.skeleton, track)

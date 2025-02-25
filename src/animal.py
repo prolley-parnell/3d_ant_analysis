@@ -101,7 +101,7 @@ class AnimalStruct:
         # Find all links in skeleton and assign names
         for node in self._connectivity_dict:
             parent_name = self._connectivity_dict[node]['parent']
-            if parent_name is not None and self._pose_dict[frame_idx][node]['score'] > 0.003:
+            if parent_name is not None and self._pose_dict[frame_idx][node]['score'] > 0.001:
 
                 # Assign the direction based on distance to core/anchor node
                 point_a = self._pose_dict[frame_idx][parent_name]['xyz']
@@ -191,9 +191,12 @@ class AnimalStruct:
             nodes.units = self._units
 
             # create a unique color for each point
-            cloud_colors = np.array([trimesh.visual.random_color() for i in nodes])
+            cloud_colors = np.array([[ 38, 252, 3, 255] for i in nodes.vertices])
             # set the colors on the random point and its nearest point to be the same
             nodes.vertices_color = cloud_colors
+
+            ray_colours = np.array([[ 38, 252, 3, 255] for i in ray_visualise.entities])
+            ray_visualise.colors = ray_colours
 
         else:
             return None
