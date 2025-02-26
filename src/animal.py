@@ -31,6 +31,7 @@ class AnimalStruct:
         self._pose_array = np.genfromtxt(pose_csv, delimiter=',', names=True, filling_values=np.nan, dtype=np.float64)
         self._pose_dict = self._pose_csv_to_dict(self._pose_array, self.node_name_list)
         self._pose_ray_dict = {} # A dictionary containing the rays between parent nodes and children
+        self._colour = trimesh.visual.random_color()
 
 
 
@@ -191,11 +192,11 @@ class AnimalStruct:
             nodes.units = self._units
 
             # create a unique color for each point
-            cloud_colors = np.array([[ 38, 252, 3, 255] for i in nodes.vertices])
+            cloud_colors = np.array([self._colour for i in nodes.vertices])
             # set the colors on the random point and its nearest point to be the same
             nodes.vertices_color = cloud_colors
 
-            ray_colours = np.array([[ 38, 252, 3, 255] for i in ray_visualise.entities])
+            ray_colours = np.array([self._colour for i in ray_visualise.entities])
             ray_visualise.colors = ray_colours
 
         else:
