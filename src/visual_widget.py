@@ -41,10 +41,16 @@ class MultiViewer:
         scene = self.update_animal(scene, self.animal_list, self.frame_index)
         scene = self.update_obj(scene, self.object_list, self.frame_index)
 
-        # scene.add_geometry(trimesh.creation.axis(origin_size=1, axis_length=4))
         self.scene_widget = trimesh.viewer.SceneWidget(scene)
         hbox.add(self.scene_widget)
-
+        self.label = pyglet.text.Label("Frame: " + str(self.frame_index),
+                                       x=window.width / 20,
+                                       y=window.height / 20,
+                                       color=[222, 100, 200, 255],
+                                       anchor_x='left',
+                                       anchor_y='bottom',
+                                       font_size= window.height / 30 )
+        # self.label.draw()
         gui.add(hbox)
 
         if auto_play:
@@ -65,8 +71,6 @@ class MultiViewer:
                 # Get the geometry from the dict in the obj class
                 obj_geom = obj.generate_geometry(frame_idx)
                 scene.add_geometry(obj_geom, node_name="object"+str(obj_id), geom_name=str(frame_idx)+"_object_"+str(obj_id))
-                # scene.add_geometry(trimesh.creation.axis(origin_size=1, axis_length=4), transform=obj_geom.principal_inertia_transform)
-
         return scene
 
     @staticmethod
@@ -93,14 +97,12 @@ class MultiViewer:
     def callback(self, dt):
         #Update the frame counter
         self.frame_index = max((self.frame_index + 1) % self.frame_range[1], self.frame_range[0])
-
+        self.label.text = "Frame: " + str(self.frame_index)
         self.scene_widget.do_undraw()
         self.scene_widget.scene = self.update_obj(self.scene_widget.scene, self.object_list, self.frame_index)
         self.scene_widget.scene = self.update_animal(self.scene_widget.scene, self.animal_list, self.frame_index)
         #Redraw the new scene
         self.scene_widget.do_draw()
-
-
 
     def _create_window(self, width, height):
         try:
@@ -123,5 +125,9 @@ class MultiViewer:
             if modifiers == 0:
                 if symbol == pyglet.window.key.Q:
                     window.close()
+
+        @window.event
+        def on_draw():
+            self.label.draw()
 
         return window
