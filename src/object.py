@@ -2,17 +2,21 @@ import logging
 import concurrent.futures
 import trimesh
 import os
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
 class CollisionObj:
 
-    def __init__(self, obj_folder: str, units: str = "m"):
+    def __init__(self, obj_folder: Path | str, units: str = "m"):
         """
         Initialise an object given by a folder of "obj" files into a dictionary of trimesh objects.
         :param obj_folder: Path to the folder containing the objects
         :param units: Units of the object as the default if none is specified in the file
         """
+        if obj_folder is not Path:
+            obj_folder = Path(obj_folder)
+
         self._obj_folder = obj_folder
         self._obj_dict = {}
         self._units = units
@@ -26,22 +30,12 @@ class CollisionObj:
             return False
         return True
 
-    def _read_obj_folder(self, obj_dir_path: str):
-        """ Given a path to a folder containing ".obj" files with the name of the corresponding frame, load these and
-        convert to a dict of trimesh"""
-        # scan all the OBJ file names in this directory
-        path_list = os.listdir(obj_dir_path)
 
-        for p in path_list:
-            frame_idx, trimesh_obj = self._single_obj_to_trimesh(p)
-            self._obj_dict[frame_idx] = trimesh_obj
-
-
-    def _read_obj_folder_mt(self, obj_dir_path: str):
+    def _read_obj_folder_mt(self, obj_dir_path: Path):
         """ Given a path to a folder containing ".obj" or ".dae" files with the name of the corresponding frame, load these and
         convert to a dict of trimesh"""
-        # scan all the OBJ file names in this directory
-        path_list = os.listdir(obj_dir_path)
+        # scan all the file names in this directory
+        path_list = obj_dir_path.iterdir()
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
             future_to_path = {executor.submit(self._single_obj_to_trimesh, obj_path): obj_path for obj_path in path_list}
@@ -57,21 +51,21 @@ class CollisionObj:
                         self._obj_dict[frame_idx] = trimesh_obj
 
 
-    def _single_obj_to_trimesh(self, obj_path: str):
+    def _single_obj_to_trimesh(self, obj_path: Path):
         """ Convert the dae or obj at the given path to a trimesh object and return the object and frame index """
-        if os.path.isdir(self._obj_folder + obj_path):
-            raise Exception("Folder {} ignored".format(self._obj_folder + obj_path))
-        if os.path.splitext(obj_path)[-1] in [".dae", ".DAE"] and not obj_path.startswith('.'):
+        if os.path.isdir(obj_path):
+            raise Exception("Folder {} ignored".format(obj_path))
+        if obj_path.suffix in [".dae", ".DAE"]:
             frame_index = int(os.path.splitext(obj_path)[-2].split('frame')[-1]) # Add to only get the number next to the dae extension (e.g. '240905-1616_seed_session28_frame568.dae')
-            trimesh_obj = trimesh.load_mesh(self._obj_folder + obj_path, 'dae', process=False)
-        elif os.path.splitext(obj_path)[-1] in [".obj", ".OBJ"] and not obj_path.startswith('.'):
+            trimesh_obj = trimesh.load_mesh(obj_path, 'dae', process=False)
+        elif obj_path.suffix in [".obj", ".OBJ"]:
             frame_index = int(os.path.splitext(obj_path)[-2].split('_')[-1]) # Add to only get the number next to the obj extension (e.g. 'seed_200.obj')
-            trimesh_obj = trimesh.load_mesh(self._obj_folder + obj_path, 'obj', process=False)
+            trimesh_obj = trimesh.load_mesh(obj_path, 'obj', process=False)
         else:
-            raise Exception("File {} ignored, not .dae or .obj file".format(self._obj_folder + obj_path))
+            raise Exception("File {} ignored, not .dae or .obj file".format(obj_path))
 
         if trimesh_obj.is_empty:
-            raise Exception("Mesh {} ignored, file empty".format(self._obj_folder + obj_path))
+            raise Exception("Mesh {} ignored, file empty".format(obj_path))
         if trimesh_obj.units is None:
             trimesh_obj.units = self._units
         return frame_index, trimesh_obj
@@ -95,7 +89,7 @@ class CollisionObj:
 
 
 class CollisionObjTransform:
-    def __init__(self, obj_folder: str, units: str = "m"):
+    def __init__(self, obj_folder: Path, units: str = "m"):
         """
         Initialise an object given by a folder of "obj" files into a dictionary of trimesh objects.
         Convert from dict of trimesh into a single mesh and a dict of transforms
