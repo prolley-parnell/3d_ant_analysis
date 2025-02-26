@@ -62,15 +62,14 @@ class CollisionObj:
         if os.path.isdir(self._obj_folder + obj_path):
             raise Exception("Folder {} ignored".format(self._obj_folder + obj_path))
         if os.path.splitext(obj_path)[-1] in [".dae", ".DAE"] and not obj_path.startswith('.'):
-            frame_index = int(os.path.splitext(obj_path)[-2].split('_')[-1]) # Add to only get the number next to the obj extension
+            frame_index = int(os.path.splitext(obj_path)[-2].split('frame')[-1]) # Add to only get the number next to the dae extension (e.g. '240905-1616_seed_session28_frame568.dae')
             trimesh_obj = trimesh.load_mesh(self._obj_folder + obj_path, 'dae', process=False)
         elif os.path.splitext(obj_path)[-1] in [".obj", ".OBJ"] and not obj_path.startswith('.'):
-            frame_index = int(os.path.splitext(obj_path)[-2].split('_')[-1]) # Add to only get the number next to the obj extension
+            frame_index = int(os.path.splitext(obj_path)[-2].split('_')[-1]) # Add to only get the number next to the obj extension (e.g. 'seed_200.obj')
             trimesh_obj = trimesh.load_mesh(self._obj_folder + obj_path, 'obj', process=False)
         else:
             raise Exception("File {} ignored, not .dae or .obj file".format(self._obj_folder + obj_path))
 
-            # trimesh_obj.vertices = np.column_stack((trimesh_obj.vertices[:, 1], trimesh_obj.vertices[:, 0], trimesh_obj.vertices[:, 2]))
         if trimesh_obj.is_empty:
             raise Exception("Mesh {} ignored, file empty".format(self._obj_folder + obj_path))
         if trimesh_obj.units is None:
