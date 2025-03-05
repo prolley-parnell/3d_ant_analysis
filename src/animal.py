@@ -54,7 +54,8 @@ class AnimalStruct:
                 temp_dict[name]['xyz'] = np.array(
                     [row[name + "_x"], row[name + "_y"], row[name + "_z"]])
                 temp_dict[name]['score'] = row[name + "_score"]
-                if temp_dict[name]['score'] > 0:
+
+                if not np.any(np.isnan(temp_dict[name]['xyz'])):
                     all_nan_flag = False
 
             if not all_nan_flag:
@@ -102,7 +103,7 @@ class AnimalStruct:
         # Find all links in skeleton and assign names
         for node in self._connectivity_dict:
             parent_name = self._connectivity_dict[node]['parent']
-            if parent_name is not None and self._pose_dict[frame_idx][node]['score'] > 0.001:
+            if parent_name is not None and self._pose_dict[frame_idx][node]['score'] > 0.03:
 
                 # Assign the direction based on distance to core/anchor node
                 point_a = self._pose_dict[frame_idx][parent_name]['xyz']
@@ -142,11 +143,13 @@ class AnimalStruct:
         dest: Destination of the ray
         }
         """
-        if not self._pose_ray_dict.keys().__contains__(frame_idx):
-            if self.check_frame_exist(frame_idx):
+        if self.check_frame_exist(frame_idx):
+            if not self._pose_ray_dict.keys().__contains__(frame_idx):
                 self._pose_ray_dict[frame_idx] = self._generate_rays(frame_idx)
 
-        return self._pose_ray_dict[frame_idx]
+            return self._pose_ray_dict[frame_idx]
+        else:
+            return {}
 
 
 

@@ -36,14 +36,18 @@ if __name__ == '__main__':
 
     OUTPUT_FOLDER = FOLDER / 'outputs'
 
-    obj_folder = OUTPUT_FOLDER / 'segmentation'
-    # obj_folder = OUTPUT_FOLDER / 'segmentation' / SESSION / OBJECT_NAME
-    track_folder = OUTPUT_FOLDER / 'tracking'
-    # track_folder = OUTPUT_FOLDER / 'tracking' / SESSION /
+    obj_folder = OUTPUT_FOLDER / 'segmentation' / str(SESSION)
+    track_folder = OUTPUT_FOLDER / 'tracking' / str(SESSION)
 
     track_list = sorted(track_folder.glob(f'{PREFIX}*session{SESSION}*.csv'))
 
+    animal_list = []
     ## Generate the Animal and Object Instances
-    for track in track_folder.iterdir():
+    for i, track in enumerate(track_list):
 
-        animal = AnimalStruct(args.skeleton, track)
+        animal_list[i] = AnimalStruct(args.skeleton, track)
+
+    collision_detector_list = []
+    ## Run the collision check for each frame and store for each animal
+    for animal_id, animal in enumerate(animal_list):
+        collision_detector_list[animal_id] = CollisionDetector(animal=animal, obj_folder=obj_folder)

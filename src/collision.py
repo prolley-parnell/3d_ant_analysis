@@ -1,11 +1,12 @@
 import logging
 from typing import Optional
+from pathlib import Path
 
 import numpy as np
 import trimesh
 
 from src.animal import AnimalStruct
-from src.object import CollisionObj
+from src.object import CollisionObj, CollisionObjTransform
 
 
 logger = logging.getLogger(__name__)
@@ -15,8 +16,10 @@ class CollisionDetector:
 
     def __init__(self,
                  animal: Optional[AnimalStruct]  = None ,
-                 obj: Optional[CollisionObj]  = None,
-                 obj_folder: Optional[str] = None,
+                 obj: Optional[CollisionObj | CollisionObjTransform]  = None,
+                 obj_folder: Optional[str | Path] = None,
+                 obj_ref_frame: Optional[int] = None,
+                 obj_transform_toml: Optional[str | Path] = None,
                  skeleton_toml_path: Optional[str] = None,
                  pose_csv: Optional[str] = None
                  ):
@@ -31,7 +34,10 @@ class CollisionDetector:
 
         if obj is None:
             if obj_folder is not None:
-                self.obj = CollisionObj(obj_folder)
+                if obj_ref_frame is not None and obj_transform_toml is not None:
+                    self.obj = CollisionObjTransform(obj_folder, obj_transform_toml, obj_ref_frame)
+                else:
+                    self.obj = CollisionObj(obj_folder)
             else:
                 raise Exception("No object included, and no path included")
         else:
@@ -66,7 +72,7 @@ class CollisionDetector:
 
         pose_ray_dict = self.animal.get_pose_ray(frame_idx)
         #ri = trimesh.ray.ray_pyembree.RayMeshIntersector(self._obj_dict[frame_idx])
-        ri = trimesh.ray.ray_triangle.RayMeshIntersector(self.obj.generate_geometry(frame_idx))
+        ri = trimesh.ray.ray_triangle.RayMeshIntersector(self.obj.generate_geometry(frame_idx)) #TODO Update this function call to reflect the options for object class
 
         index_tri, index_ray, location = ri.intersects_id(
             ray_origins=[pose_ray_dict[link]['origin'] for link in pose_ray_dict.keys()],

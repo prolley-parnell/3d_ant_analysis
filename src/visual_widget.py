@@ -5,7 +5,7 @@ import glooey
 import pyglet
 import trimesh.viewer
 from src.animal import AnimalStruct
-from src.object import CollisionObj
+from src.object import CollisionObj, CollisionObjTransform
 
 
 class MultiViewer:
@@ -14,7 +14,7 @@ class MultiViewer:
     Viewer for both the animal and the object in the collision frame, allows for lists of objects and animals
     """
 
-    def __init__(self, animal_list: [AnimalStruct], object_list: [CollisionObj], frame_index, auto_play: bool = True):
+    def __init__(self, animal_list: [AnimalStruct], object_list: list[CollisionObj | CollisionObjTransform], frame_index, auto_play: bool = True):
         # create window with padding
         self.width, self.height = 960, 720
         window = self._create_window(width=self.width, height=self.height)
@@ -60,7 +60,7 @@ class MultiViewer:
         pyglet.app.run()
 
     @staticmethod
-    def update_obj(scene: trimesh.Scene, obj_list: list[CollisionObj], frame_idx: int):
+    def update_obj(scene: trimesh.Scene, obj_list: list[CollisionObj | CollisionObjTransform], frame_idx: int):
 
         for obj_id, obj in enumerate(obj_list):
             # Check if the frame is present in the dict of object frames
@@ -69,8 +69,16 @@ class MultiViewer:
                 scene.delete_geometry(obj_name_list)
 
                 # Get the geometry from the dict in the obj class
-                obj_geom = obj.generate_geometry(frame_idx)
-                scene.add_geometry(obj_geom, node_name="object"+str(obj_id), geom_name=str(frame_idx)+"_object_"+str(obj_id))
+                if obj.__class__.__name__ == "CollisionObj":
+                    obj_geom = obj.generate_geometry(frame_idx)
+                    scene.add_geometry(obj_geom, node_name="object"+str(obj_id), geom_name=str(frame_idx)+"_object_"+str(obj_id))
+                if obj.__class__.__name__ == "CollisionObjTransform":
+                    obj_geom = obj.obj_mesh()
+                    tf = obj.generate_transform(frame_idx)
+                    scene.add_geometry(obj_geom, node_name="object" + str(obj_id),
+                                       geom_name=str(frame_idx) + "_object_" + str(obj_id), transform=tf)
+
+
         return scene
 
     @staticmethod

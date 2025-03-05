@@ -3,6 +3,8 @@ import concurrent.futures
 import trimesh
 import os
 from pathlib import Path
+import toml
+import numpy as np
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +40,7 @@ class CollisionObj:
         path_list = obj_dir_path.iterdir()
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
-            future_to_path = {executor.submit(self._single_obj_to_trimesh, obj_path): obj_path for obj_path in path_list}
+            future_to_path = {executor.submit(single_obj_to_trimesh, obj_path, self._units): obj_path for obj_path in path_list}
             for future in concurrent.futures.as_completed(future_to_path):
                 path_input = future_to_path[future]
                 try:
@@ -49,26 +51,6 @@ class CollisionObj:
                     logger.info('Frame index is %d ' % frame_idx)
                     if not trimesh_obj.is_empty:
                         self._obj_dict[frame_idx] = trimesh_obj
-
-
-    def _single_obj_to_trimesh(self, obj_path: Path):
-        """ Convert the dae or obj at the given path to a trimesh object and return the object and frame index """
-        if os.path.isdir(obj_path):
-            raise Exception("Folder {} ignored".format(obj_path))
-        if obj_path.suffix in [".dae", ".DAE"]:
-            frame_index = int(os.path.splitext(obj_path)[-2].split('frame')[-1]) # Add to only get the number next to the dae extension (e.g. '240905-1616_seed_session28_frame568.dae')
-            trimesh_obj = trimesh.load_mesh(obj_path, 'dae', process=False)
-        elif obj_path.suffix in [".obj", ".OBJ"]:
-            frame_index = int(os.path.splitext(obj_path)[-2].split('_')[-1]) # Add to only get the number next to the obj extension (e.g. 'seed_200.obj')
-            trimesh_obj = trimesh.load_mesh(obj_path, 'obj', process=False)
-        else:
-            raise Exception("File {} ignored, not .dae or .obj file".format(obj_path))
-
-        if trimesh_obj.is_empty:
-            raise Exception("Mesh {} ignored, file empty".format(obj_path))
-        if trimesh_obj.units is None:
-            trimesh_obj.units = self._units
-        return frame_index, trimesh_obj
 
     def get_frame_range(self):
         """ Give [min, max] of the frame indices for the stored poses"""
@@ -89,18 +71,49 @@ class CollisionObj:
 
 
 class CollisionObjTransform:
-    def __init__(self, obj_folder: Path, units: str = "m"):
+    def __init__(self, obj_folder: Path, toml_path: Path, reference_frame: int, units: str = "m"):
         """
         Initialise an object given by a folder of "obj" files into a dictionary of trimesh objects.
         Convert from dict of trimesh into a single mesh and a dict of transforms
         :param obj_folder: Path to the folder containing the objects
         """
+        if obj_folder is not Path:
+            obj_folder = Path(obj_folder).resolve()
+
         self._obj_folder = obj_folder
         self._units = units
-        co = CollisionObj(obj_folder, units)
-        self.obj_mesh, self._obj_transforms = convert_collision_obj(co)
 
+        obj_path = sorted(self._obj_folder.glob(f"*{str(reference_frame)}.*"))
+        if len(obj_path) == 0:
+            logger.error(f"No paths matching {obj_folder} were found")
+            return
+        elif len(obj_path) > 1:
+            logger.error(f"Multiple paths matching {obj_folder} were found")
+            return
+        else:
+            obj_path = obj_path[0]
 
+        self._reference_frame, self._obj_mesh = single_obj_to_trimesh(obj_path, self._units)
+
+        if toml_path is not Path:
+            toml_path = Path(toml_path).resolve()
+        self._obj_transforms = self.load_transform_toml(toml_path)
+
+    @staticmethod
+    def load_transform_toml(toml_path: Path):
+        def toml_tf_format(_dict=dict):
+            dict_out = dict()
+            for k, v in _dict.items():
+                new_key = int(k.split('_')[-1])
+                dict_out[new_key] = np.array(v)
+
+            return dict_out
+
+        transform_dict = toml_tf_format(toml.load(toml_path))
+        return transform_dict
+
+    def obj_mesh(self):
+        return self._obj_mesh
 
     def check_frame_exist(self, frame_idx):
         """ If frame index is not present in the object dictionary, return false"""
@@ -123,32 +136,25 @@ class CollisionObjTransform:
     def generate_scene(self, frame_idx: int):
         """Return a trimesh scene object with the seed in the world frame"""
         scene = trimesh.Scene()
-        scene.add_geometry(self.obj_mesh, node_name="object", geom_name=str(frame_idx), transform=self.generate_transform(frame_idx))
+        scene.add_geometry(self._obj_mesh, node_name="object", geom_name=str(frame_idx), transform=self.generate_transform(frame_idx))
         return scene
 
 
-def convert_collision_obj(co: CollisionObj):
-    """ Convert from a CollisionObject with a dict of objects, into a single trimesh object and a dict of transforms"""
+def single_obj_to_trimesh(obj_path: Path, _units: str = "m"):
+    """ Convert the dae or obj at the given path to a trimesh object and return the object and frame index """
+    if os.path.isdir(obj_path):
+        raise Exception("Folder {} ignored".format(obj_path))
+    if obj_path.suffix in [".dae", ".DAE"]:
+        frame_index = int(os.path.splitext(obj_path)[-2].split('frame')[-1]) # Add to only get the number next to the dae extension (e.g. '240905-1616_seed_session28_frame568.dae')
+        trimesh_obj = trimesh.load_mesh(obj_path, 'dae', process=False)
+    elif obj_path.suffix in [".obj", ".OBJ"]:
+        frame_index = int(os.path.splitext(obj_path)[-2].split('_')[-1]) # Add to only get the number next to the obj extension (e.g. 'seed_200.obj')
+        trimesh_obj = trimesh.load_mesh(obj_path, 'obj', process=False)
+    else:
+        raise Exception("File {} ignored, not .dae or .obj file".format(obj_path))
 
-    output_transforms = dict()
-
-    sorted_frames = co.frames
-    origin = trimesh.creation.axis(origin_size=1, axis_length=4)
-    geom_prior = co.generate_geometry(sorted_frames[0])
-    output_transforms[sorted_frames[0]] = geom_prior.principal_inertia_transform
-
-    origin.apply_transform(output_transforms[sorted_frames[0]])
-    
-    for frame in sorted_frames[1:14]:
-
-        geom_base = co.generate_geometry(frame)
-        print(geom_prior.principal_inertia_vectors)
-        T, cost = geom_prior.register(geom_base)
-        geom_prior.apply_transform(T)
-        origin.apply_transform(T)
-        print(cost)
-        output_transforms[frame] = origin.principal_inertia_transform
-
-    output_mesh = geom_prior
-
-    return output_mesh, output_transforms
+    if trimesh_obj.is_empty:
+        raise Exception("Mesh {} ignored, file empty".format(obj_path))
+    if trimesh_obj.units is None:
+        trimesh_obj.units = _units
+    return frame_index, trimesh_obj
