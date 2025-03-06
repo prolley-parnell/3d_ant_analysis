@@ -1,6 +1,9 @@
 ###
-## Functions to analyse the collision class
+## Functions to plot all collisions for a single Animal object, with a single colour for each keypoint or link in collision, plotted on the object
 ###
+
+###
+## Will need to be able to transform the collisions relative to the shape and plot them all on the single object 
 
 import argparse
 from pathlib import Path

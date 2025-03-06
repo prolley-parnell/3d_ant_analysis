@@ -1,0 +1,1 @@
+### Script to plot the coordinates of one, or multiple keypoints of an Animal object across the frames with X, Y and Z as individual Y axes and frame number as the X axis.
