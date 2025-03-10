@@ -101,15 +101,19 @@ class CollisionObjTransform:
 
     @staticmethod
     def load_transform_toml(toml_path: Path):
+        ## Assumes the saved file format surrounds each number in the array with 'np.float64(0.00)'
         def toml_tf_format(_dict=dict):
             dict_out = dict()
             for k, v in _dict.items():
                 new_key = int(k.split('_')[-1])
-                dict_out[new_key] = np.array(v)
+                dict_out[new_key] = np.array(v, dtype=np.float64)
 
             return dict_out
 
-        transform_dict = toml_tf_format(toml.load(toml_path))
+        with open(toml_path, 'r') as f:
+            toml_str = f.read()
+
+        transform_dict = toml_tf_format(toml.loads(toml_str.replace('np.float64(', '').replace(')', '')))
         return transform_dict
 
     def obj_mesh(self):
