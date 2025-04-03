@@ -22,8 +22,11 @@ class CollisionObj:
         self._obj_folder = obj_folder
         self._obj_dict = {}
         self._units = units
+        self._colour = trimesh.visual.random_color()
+        self._colour[3] = 140 #Change the colour alpha to make the object translucent
         self._read_obj_folder_mt(self._obj_folder)
         self.frames = sorted(self._obj_dict.keys())
+
 
     def check_frame_exist(self, frame_idx):
         """ If frame index is not present in the object dictionary, return false"""
@@ -40,7 +43,7 @@ class CollisionObj:
         path_list = obj_dir_path.iterdir()
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
-            future_to_path = {executor.submit(single_obj_to_trimesh, obj_path, self._units): obj_path for obj_path in path_list}
+            future_to_path = {executor.submit(single_obj_to_trimesh, obj_path, self._units, self._colour): obj_path for obj_path in path_list}
             for future in concurrent.futures.as_completed(future_to_path):
                 path_input = future_to_path[future]
                 try:
@@ -82,6 +85,8 @@ class CollisionObjTransform:
 
         self._obj_folder = obj_folder
         self._units = units
+        self._colour = trimesh.visual.random_color()
+        self._colour[3] = 140 #Change the colour alpha to make the object translucent
 
         obj_path = sorted(self._obj_folder.glob(f"*{str(reference_frame)}.*"))
         if len(obj_path) == 0:
@@ -93,7 +98,8 @@ class CollisionObjTransform:
         else:
             obj_path = obj_path[0]
 
-        self._reference_frame, self._obj_mesh = single_obj_to_trimesh(obj_path, self._units)
+        self._reference_frame, self._obj_mesh = single_obj_to_trimesh(obj_path, self._units, self._colour)
+
 
         if toml_path is not Path:
             toml_path = Path(toml_path).resolve()
@@ -144,7 +150,7 @@ class CollisionObjTransform:
         return scene
 
 
-def single_obj_to_trimesh(obj_path: Path, _units: str = "m"):
+def single_obj_to_trimesh(obj_path: Path, _units: str = "m", _colour: [int] = None):
     """ Convert the dae or obj at the given path to a trimesh object and return the object and frame index """
     if os.path.isdir(obj_path):
         raise Exception("Folder {} ignored".format(obj_path))
@@ -161,4 +167,6 @@ def single_obj_to_trimesh(obj_path: Path, _units: str = "m"):
         raise Exception("Mesh {} ignored, file empty".format(obj_path))
     if trimesh_obj.units is None:
         trimesh_obj.units = _units
+    if _colour is not None:
+        trimesh_obj.visual.face_colors = np.array([_colour for i in trimesh_obj.faces])
     return frame_index, trimesh_obj
