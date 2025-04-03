@@ -84,10 +84,10 @@ class MultiViewer:
     @staticmethod
     def update_animal(scene: trimesh.Scene, animal_list: list[AnimalStruct], frame_idx: int):
 
-        for animal_id, animal in enumerate(animal_list):
+        for animal in animal_list:
             # Check if the frame is present in the dict of object frames
             if animal.check_frame_exist(frame_idx):
-                animal_name_list = [k for k in scene.geometry.keys() if "animal_"+str(animal_id) in k]
+                animal_name_list = [k for k in scene.geometry.keys() if "animal_" + animal.name in k]
                 scene.delete_geometry(animal_name_list)
 
                 animal_geom = animal.generate_geometry(frame_idx=frame_idx)
@@ -96,9 +96,9 @@ class MultiViewer:
 
                     # Replace the current scene with the scene created in the animal class
                     scene.add_geometry(animal_ray, node_name="animal_ray",
-                                       geom_name=str(frame_idx) + "_animal_" + str(animal_id) + "_ray")
+                                       geom_name=str(frame_idx) + "_animal_" + animal.name + "_ray")
                     scene.add_geometry(animal_node, node_name="animal_node",
-                                       geom_name=str(frame_idx) + "_animal_" + str(animal_id) + "_node")
+                                       geom_name=str(frame_idx) + "_animal_" + animal.name + "_node")
         return scene
 
 

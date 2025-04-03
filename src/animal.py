@@ -1,7 +1,8 @@
 import logging
 import numpy as np
 import trimesh
-
+from pathlib import Path
+import concurrent.futures
 import trimesh.transformations as tf
 import trimesh.viewer
 
@@ -9,14 +10,17 @@ from scipy.sparse.csgraph import dijkstra
 
 from src.skeleton import SkeletonToml
 
+
+
 logger = logging.getLogger(__name__)
 
 class AnimalStruct:
 
     def __init__(self,
-                 toml_path: str,
-                 pose_csv: str,
-                 input_units: str = "mm"
+                 toml_path: Path,
+                 pose_csv: Path,
+                 input_units: str = "mm",
+                 animal_name: str = None
                  ):
         """ Initialise a holder for the structure of the animal skeleton
         :param toml_path: Path to the toml file containing the structure of the animal skeleton
@@ -25,6 +29,15 @@ class AnimalStruct:
         sk = SkeletonToml(toml_path)
         self._connectivity_list = sk.skeleton_connectivity
         self.node_name_list = sk.link_name_list
+
+        if pose_csv is not Path:
+            pose_csv = Path(pose_csv).resolve()
+
+        if animal_name is None:
+            #Structure is 240905-1616_session28_track13_points3d.csv
+            self.name = pose_csv.as_posix().split("/")[-1].split("_points3d.csv")[0]
+        else:
+            self.name = animal_name
         self._connectivity_dict = {}
         self._units = input_units
         self._generate_connectivity_dict()
@@ -60,6 +73,9 @@ class AnimalStruct:
 
             if not all_nan_flag:
                 pose_dict[frame_i] = temp_dict
+
+        if pose_dict == {}:
+            raise ValueError("Pose csv does not contain any valid frames")
 
         return pose_dict
 
@@ -239,5 +255,57 @@ class AnimalStruct:
         else:
             scene.add_geometry(None)
         return scene
+
+class AnimalList:
+    def __init__(self,
+        toml_path: Path | str,
+        csv_folder: Path | str,
+        session_number: int,
+        track_number: list = None,
+        input_units: str = "mm"
+        ):
+        """ Generate a list of AnimalStruct objects from a folder structure"""
+        self._units = input_units
+        self._toml_path = toml_path
+
+        if csv_folder is not Path:
+            csv_folder = Path(csv_folder).resolve()
+
+        #240905-1616_session28_track13_points3d.csv
+        if track_number is None:
+            csv_path_list = sorted(csv_folder.glob(f"*_session{str(session_number)}_track*_points3d.csv"))
+        else:
+            csv_path_list = []
+            for track_id in track_number:
+                csv_path_list.append(sorted(csv_folder.glob(f"*_session{str(session_number)}_track{str(track_id)}_points3d.csv")))
+
+        self._animals = []
+        self._read_tracking_folder_mt(csv_path_list)
+        self._animal_name_list = [animal.name for animal in self._animals]
+
+
+    def _read_tracking_folder_mt(self, tracking_dir_list: list):
+        """ Given a path to a folder containing ".obj" or ".dae" files with the name of the corresponding frame, load these and
+        convert to a dict of trimesh"""
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+            future_to_path = {executor.submit(AnimalStruct, self._toml_path, track_path, self._units): track_path for track_path in tracking_dir_list}
+            for future in concurrent.futures.as_completed(future_to_path):
+                path_input = future_to_path[future]
+                try:
+                    animal = future.result()
+                except Exception as exc:
+                    logger.error('%r generated an exception: %s' % (path_input, exc))
+                else:
+                    logger.info('Animal name is %s ' % animal.name)
+                    self._animals.append(animal)
+
+    @property
+    def animals(self):
+        return self._animals
+
+    @property
+    def animal_name_list(self):
+        return self._animal_name_list
 
 
