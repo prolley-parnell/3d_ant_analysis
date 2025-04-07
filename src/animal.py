@@ -35,7 +35,9 @@ class AnimalStruct:
 
         if animal_name is None:
             #Structure is 240905-1616_session28_track13_points3d.csv
-            self.name = pose_csv.as_posix().split("/")[-1].split("_points3d.csv")[0]
+            self.name = pose_csv.as_posix().split("/")[-1].split("_")[2]
+            self._prefix = pose_csv.as_posix().split("/")[-1].split("_")[0]
+            self._session = pose_csv.as_posix().split("/")[-1].split("_")[1]
         else:
             self.name = animal_name
         self._connectivity_dict = {}
@@ -256,6 +258,10 @@ class AnimalStruct:
             scene.add_geometry(None)
         return scene
 
+    @property
+    def colour(self):
+        return self._colour
+
 class AnimalList:
     def __init__(self,
         toml_path: Path | str,
@@ -301,7 +307,7 @@ class AnimalList:
                     self._animals.append(animal)
 
     @property
-    def animals(self):
+    def animals(self) -> list[AnimalStruct]:
         return self._animals
 
     @property
