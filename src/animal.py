@@ -9,8 +9,7 @@ import trimesh.viewer
 from scipy.sparse.csgraph import dijkstra
 
 from src.skeleton import SkeletonToml
-
-
+from pandas import DataFrame, MultiIndex
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +27,7 @@ class AnimalStruct:
         """
         sk = SkeletonToml(toml_path)
         self._connectivity_list = sk.skeleton_connectivity
-        self.node_name_list = sk.link_name_list
+        self._node_name_list = sk.link_name_list
 
         if pose_csv is not Path:
             pose_csv = Path(pose_csv).resolve()
@@ -44,10 +43,9 @@ class AnimalStruct:
         self._units = input_units
         self._generate_connectivity_dict()
         self._pose_array = np.genfromtxt(pose_csv, delimiter=',', names=True, filling_values=np.nan, dtype=np.float64)
-        self._pose_dict = self._pose_csv_to_dict(self._pose_array, self.node_name_list)
+        self._pose_dict = self._pose_csv_to_dict(self._pose_array, self._node_name_list)
         self._pose_ray_dict = {} # A dictionary containing the rays between parent nodes and children
         self._colour = trimesh.visual.random_color()
-
 
 
     @staticmethod
@@ -86,13 +84,13 @@ class AnimalStruct:
 
         distance_list, connectivity_map = self._tree_search_connectivity(reference_index)
 
-        for i, name in enumerate(self.node_name_list):
+        for i, name in enumerate(self._node_name_list):
             connections = list(np.where(connectivity_map[i])[0])
             if i == reference_index:
                 parent = None
             else:
                 parent_index = np.argmin(distance_list[connections])
-                parent = self.node_name_list[connections[parent_index]]
+                parent = self._node_name_list[connections[parent_index]]
             self._connectivity_dict[name] = {'dist': distance_list[i],
                                             'index': i,
                                             'connections': connections,
@@ -261,6 +259,31 @@ class AnimalStruct:
     @property
     def colour(self):
         return self._colour
+
+    @property
+    def frames(self) -> list:
+        return [*self._pose_dict.keys()]
+
+    def get_xyz_df(self, frame_idx: list = None, node_list: list = None):
+        if frame_idx is None:
+            frame_idx = self.frames
+
+        frame_idx = sorted(frame_idx)
+
+        if node_list is None:
+            node_list = self._node_name_list
+
+        m = MultiIndex.from_product([node_list, ['x', 'y', 'z']], names=['Node', 'Axis'])
+        df = DataFrame(None, index=m, columns=frame_idx)
+
+        for frame in frame_idx:
+            for name in node_list:
+                df.loc[name, frame] = self._pose_dict[frame][name]['xyz']
+
+        return df, node_list
+
+
+
 
 class AnimalList:
     def __init__(self,
