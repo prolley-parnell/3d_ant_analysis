@@ -5,8 +5,15 @@ from pathlib import Path
 import numpy as np
 import trimesh
 
-from src.animal import AnimalStruct
+from src.animal import AnimalStruct, AnimalList
 from src.object import CollisionObj, CollisionObjTransform
+from src.loader import InstanceLoader
+
+from pandas import DataFrame, concat
+from pandas import MultiIndex
+from pandas import Series
+
+import concurrent.futures
 
 
 logger = logging.getLogger(__name__)
@@ -14,40 +21,42 @@ logger = logging.getLogger(__name__)
 
 class CollisionDetector:
 
-    def __init__(self,
-                 animal: Optional[AnimalStruct]  = None ,
-                 obj: Optional[CollisionObj | CollisionObjTransform]  = None,
-                 obj_folder: Optional[str | Path] = None,
-                 obj_ref_frame: Optional[int] = None,
-                 obj_transform_toml: Optional[str | Path] = None,
-                 skeleton_toml_path: Optional[str] = None,
-                 pose_csv: Optional[str] = None
-                 ):
+    def __init__(self, instance: Optional[InstanceLoader] = None,
+                 animal_list: Optional[AnimalList] = None,
+                 obj_list: Optional[list[CollisionObj | CollisionObjTransform]] = None):
 
-        if animal is None:
-            if skeleton_toml_path is not None and pose_csv is not None:
-                self.animal = AnimalStruct(skeleton_toml_path, pose_csv)
-            else:
-                raise Exception("No animal, skeleton_toml_path, or pose_csv included")
+        if instance is not None:
+            self._animal_list = instance.animal_list
+            self._obj_list = instance.obj_list
         else:
-            self.animal = animal
+            if animal_list or obj_list is None:
+                raise ValueError("Must provide animal_list or obj_list, or an InstanceLoader")
+            else:
+                self._animal_list = animal_list
+                self._obj_list = obj_list
 
-        if obj is None:
-            if obj_folder is not None:
-                if obj_ref_frame is not None and obj_transform_toml is not None:
-                    self.obj = CollisionObjTransform(obj_folder, obj_transform_toml, obj_ref_frame)
-                else:
-                    self.obj = CollisionObj(obj_folder)
-            else:
-                raise Exception("No object included, and no path included")
-        else:
-            self.obj = obj
+        min_frame = min([inst.get_frame_range()[0] for inst in [*self._animal_list.animals, *self._obj_list]])
+        max_frame = max([inst.get_frame_range()[1] for inst in [*self._animal_list.animals, *self._obj_list]])
+
+        self._all_frames = range(min_frame, max_frame)
+
+        all_animal_name = self._animal_list.animal_name_list
+
+        self._dt = np.dtype([('Frame', np.int32), ('Track', np.str_, 16), ('ID', np.uint8), ('Limb', np.str_, 16), ('Norm', np.float64, 3),
+                             ('Point', np.float64, 3)])
+        # self._mi = MultiIndex.from_product([all_animal_name, [], ["Limb", "Norm", "Point"]], names=['Track', 'Instance', 'Contact'])
+        # self._collision_df = DataFrame(None, index=self._mi, columns=self._all_frames)
+
+        collision_list = self._calculate_collision_mt()
+        df = DataFrame(collision_list.tolist(), columns=self._dt.names)
+        df.set_index(["Frame", "Track"], inplace=True)
+        self._collision_df = df
 
 
     def visualise_collision(self, frame_idx: int):
         ''' Give a frame index, calculate collision points then visualise'''
 
-        location_array, normal_array = self.get_collisions(frame_idx)
+        location_array, normal_array = self._calculate_collisions(frame_idx)
         if len(location_array) == 0:
             logger.info("No collisions found for %d" % frame_idx)
             ray_visualise = []
@@ -60,33 +69,90 @@ class CollisionDetector:
 
         return scene
 
+    def get_track(self, track_name: str) -> DataFrame:
+        """ Return the collision Dataframe for only 1 animal
+         Example usage:
+         >>> cd = CollisionDetector()
+         >>> cd.get_track('track99')
+         """
+        return self._collision_df.xs(track_name, level=1)
 
-    def get_collisions(self, frame_idx: int):
+    def get_link(self, link_name_list: [str]) -> DataFrame:
+        """ Return the collision Dataframe for only 1 animal
+         Example usage:
+
+         >>> cd = CollisionDetector()
+         >>> cd.get_link(['neck_to_m_R0','neck_to_eye_R'])
+
+         """
+        return self._collision_df.loc[self._collision_df["Limb"].isin(link_name_list)]
+
+
+    def _calculate_collisions(self, frame_idx: int):
         '''
         Given a frame index, calculate and return the collisions with the object and the surface normal at the
         point of collision.
         '''
-        if not self.check_frame_exist(frame_idx):
-            logger.warning('Could not find collision for frame index {} because both object and animal are not in this frame'.format(frame_idx))
-            return None
 
-        pose_ray_dict = self.animal.get_pose_ray(frame_idx)
-        #ri = trimesh.ray.ray_pyembree.RayMeshIntersector(self._obj_dict[frame_idx])
-        ri = trimesh.ray.ray_triangle.RayMeshIntersector(self.obj.generate_geometry(frame_idx)) #TODO Update this function call to reflect the options for object class
+        for obj in self._obj_list: #TODO: currently only one object at a time
+            # Check that the object is in the frame
+            if obj.check_frame_exist(frame_idx):
+                geom = obj.generate_scene(frame_idx).to_mesh()
 
-        index_tri, index_ray, location = ri.intersects_id(
-            ray_origins=[pose_ray_dict[link]['origin'] for link in pose_ray_dict.keys()],
-            ray_directions=[pose_ray_dict[link]['vector'] for link in pose_ray_dict.keys()],
-            multiple_hits=True,
-            max_hits=10,
-            return_locations=True
-        )
+                animals_in_frame = self._animal_list.where_frame_exist(frame_idx)
+                collision_array = np.empty(0, dtype=self._dt)
+                for animal in animals_in_frame:
+                    #Check that the animal is in the frame
 
-        surface_norm = self.obj.generate_geometry(frame_idx).face_normals[index_tri]
-        return location, surface_norm
+                    pose_ray_dict = animal.get_pose_ray(frame_idx)
+                    link_list = [*pose_ray_dict.keys()]
+                    if len(pose_ray_dict) > 0:
+                        # ri = trimesh.ray.ray_pyembree.RayMeshIntersector(self._obj_dict[frame_idx])
+                        ri = trimesh.ray.ray_triangle.RayMeshIntersector(geom)
 
 
-    def check_frame_exist(self, frame_idx):
-        ''' If frame index is not present in one of the dictionaries, return false'''
-        return self.animal.check_frame_exist(frame_idx) and self.obj.check_frame_exist(frame_idx)
+                        index_tri, index_ray, location = ri.intersects_id(
+                            ray_origins=[pose_ray_dict[link]['origin'] for link in link_list],
+                            ray_directions=[pose_ray_dict[link]['vector'] for link in link_list],
+                            multiple_hits=True,
+                            max_hits=10,
+                            return_locations=True
+                        )
 
+                        if len(index_ray) > 0:
+
+                            animal_collision = np.empty(len(index_ray), dtype=self._dt)
+                            animal_collision['Frame'] = frame_idx
+                            animal_collision['Track'] = animal.name
+                            animal_collision['ID'] = np.array([*range(len(index_ray))])
+                            animal_collision['Limb'] = [link_list[ray] for ray in index_ray]
+                            animal_collision['Norm'] = geom.face_normals[index_tri].squeeze()
+                            animal_collision['Point'] = location
+
+
+                            collision_array = np.concatenate((collision_array, animal_collision), axis=0)
+
+                    return collision_array
+
+
+    def _calculate_collision_mt(self):
+        """ Given a path to a folder containing ".obj" or ".dae" files with the name of the corresponding frame, load these and
+        convert to a dict of trimesh"""
+        # scan all the file names in this directory
+
+        frame_list = self._all_frames
+        _collision_array = np.empty(0, dtype=self._dt)
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=20) as executor:
+            future_to_path = {executor.submit(self._calculate_collisions, frame_idx): frame_idx for frame_idx in frame_list}
+            for future in concurrent.futures.as_completed(future_to_path):
+                frame_input = future_to_path[future]
+                try:
+                    frame_collision_array = future.result()
+                except Exception as exc:
+                    logger.error('%r generated an exception: %s' % (frame_input, exc))
+                else:
+                    if not (frame_collision_array is None or len(frame_collision_array) == 0) :
+                        _collision_array = np.concatenate((_collision_array, frame_collision_array), axis=0)
+
+        return _collision_array

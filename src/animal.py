@@ -5,6 +5,7 @@ from pathlib import Path
 import concurrent.futures
 import trimesh.transformations as tf
 import trimesh.viewer
+from typing import Optional
 
 from scipy.sparse.csgraph import dijkstra
 
@@ -119,7 +120,7 @@ class AnimalStruct:
         # Find all links in skeleton and assign names
         for node in self._connectivity_dict:
             parent_name = self._connectivity_dict[node]['parent']
-            if parent_name is not None and self._pose_dict[frame_idx][node]['score'] > 0.03:
+            if parent_name is not None and self._pose_dict[frame_idx][node]['score'] > 0.03: #TODO check that this threshold still applies
 
                 # Assign the direction based on distance to core/anchor node
                 point_a = self._pose_dict[frame_idx][parent_name]['xyz']
@@ -287,29 +288,34 @@ class AnimalStruct:
 
 class AnimalList:
     def __init__(self,
-        toml_path: Path | str,
-        csv_folder: Path | str,
-        session_number: int,
-        track_number: list = None,
-        input_units: str = "mm"
+        animals: Optional[list[AnimalStruct]] = None,
+        toml_path: Optional[Path | str] = None,
+        csv_folder: Optional[Path | str] = None,
+        session_number: Optional[int] = None,
+        track_number: Optional[list] = None,
+        input_units: Optional[str] = "mm"
         ):
         """ Generate a list of AnimalStruct objects from a folder structure"""
-        self._units = input_units
-        self._toml_path = toml_path
+        if animals is None:
+            self._units = input_units
+            self._toml_path = toml_path
 
-        if csv_folder is not Path:
-            csv_folder = Path(csv_folder).resolve()
+            if csv_folder is not Path:
+                csv_folder = Path(csv_folder).resolve()
 
-        #240905-1616_session28_track13_points3d.csv
-        if track_number is None:
-            csv_path_list = sorted(csv_folder.glob(f"*_session{str(session_number)}_track*_points3d.csv"))
+            #240905-1616_session28_track13_points3d.csv
+            if track_number is None:
+                csv_path_list = sorted(csv_folder.glob(f"*_session{str(session_number)}_track*_points3d.csv"))
+            else:
+                csv_path_list = []
+                for track_id in track_number:
+                    csv_path_list.append(sorted(csv_folder.glob(f"*_session{str(session_number)}_track{str(track_id)}_points3d.csv")))
+
+            self._animals = []
+            self._read_tracking_folder_mt(csv_path_list)
         else:
-            csv_path_list = []
-            for track_id in track_number:
-                csv_path_list.append(sorted(csv_folder.glob(f"*_session{str(session_number)}_track{str(track_id)}_points3d.csv")))
+            self._animals = animals
 
-        self._animals = []
-        self._read_tracking_folder_mt(csv_path_list)
         self._animal_name_list = [animal.name for animal in self._animals]
 
 
@@ -336,5 +342,9 @@ class AnimalList:
     @property
     def animal_name_list(self):
         return self._animal_name_list
+
+    def where_frame_exist(self, frame_idx: int) -> list[AnimalStruct]:
+        """ :returns A list of animals where the animal is in the frame"""
+        return [animal for animal in self._animals if animal.check_frame_exist(frame_idx)]
 
 

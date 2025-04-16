@@ -24,6 +24,22 @@ class XYZPlot:
         self.ax_z.set_xlabel('Frame')
 
 
+class KPAccXYZ(XYZPlot):
+    def __init__(self, animal: AnimalStruct, frames: list[int] = None, node: list[str] = None, window_size:int = 5):
+        """
+        Plot class to visualise the acceleration of animal keypoints across the frames in the x, y, and z axes.
+        :param animal: AnimalStruct instance to plot
+        :param frames: list of frames to plot, defaults to None so all are plotted
+        :param node: list of nodes to plot, defaults to None so all are plotted
+        :param window_size: Time window to average over, defaults to 5 steps, not necessarily 5 frames difference.
+        """
+
+        velocity_df, acceleration_df, kp_in_df = get_velocity_xyz_df(animal, frames, node, window_size)
+        super().__init__(acceleration_df, kp_in_df)
+        self.ax_x.set_ylabel('X Acceleration')
+        self.ax_y.set_ylabel('Y Acceleration')
+        self.ax_z.set_ylabel('Z Acceleration')
+        plt.show()
 
 class KPVelocityXYZ(XYZPlot):
     def __init__(self, animal: AnimalStruct, frames: list[int] = None, node: list[str] = None, window_size:int = 5):
@@ -35,7 +51,7 @@ class KPVelocityXYZ(XYZPlot):
         :param window_size: Time window to average over, defaults to 5 steps, not necessarily 5 frames difference.
         """
 
-        velocity_df, kp_in_df = get_velocity_xyz_df(animal, frames, node, window_size)
+        velocity_df, acceleration_df, kp_in_df = get_velocity_xyz_df(animal, frames, node, window_size)
         super().__init__(velocity_df, kp_in_df)
         self.ax_x.set_ylabel('X Velocity')
         self.ax_y.set_ylabel('Y Velocity')
@@ -73,12 +89,62 @@ def get_velocity_xyz_df(animal: AnimalStruct, frames: list[int] = None, node_lis
 
 
     keys = position_df.keys()[:-window_size]
-    shift_keys = position_df.keys()[window_size:]
 
-    velocity_df = position_df[shift_keys].copy()
+    velocity_df = position_df[keys].copy()
+    acceleration_df = position_df[keys].copy()
+
+    u = 0
+    for key in keys:
+        key_upper = key + window_size
+
+        for kp in kp_in_df:
+            p_start = position_df.loc[kp, key]
+            if not np.isnan(p_start):
+                p_end = position_df.loc[kp, key_upper]
+                while np.isnan(p_end):
+                    key_upper = key_upper + 1
+                    p_end = position_df.loc[kp, key_upper]
+
+                s = p_end - p_start
+                dt = key_upper - key
+                a = (2 * (s - u * dt)) / (dt ** 2)
+                acceleration_df.loc[kp, key:key_upper] = a
+                v = u + a * dt
+                velocity_df.loc[kp, key:key_upper] = v
+                u = velocity_df[kp, key]
+
+
+            else:
+                print("Starting point is not valid")
+
+
+    return velocity_df, acceleration_df, kp_in_df
+
+def get_acceleration_xyz_df(animal: AnimalStruct, frames: list[int] = None, node_list: list[str] = None, window_size: int = 3) -> (pd.DataFrame, list[str]):
+    """
+    Return the acceleration for the provided keypoints across the total frames in x,y and z
+    :param animal: An instance of AnimalStruct
+    :param frames: A list of frame numbers to plot, defaults to all frames
+    :param node_list: A list of node names to plot, defaults to None, resulting in all nodes plotted
+    :param window_size: The size of the window size to use to get the average velocity, defaults to 3
+    :return: (pd.DataFrame, list[str]) velocity dataframe, list of node names
+    """
+
+    position_df, kp_in_df = animal.get_xyz_df(frames, node_list)
+    velocity_df, kp_in_df = get_velocity_xyz_df(animal, frames, node_list, window_size)
+
+
+    keys = velocity_df.keys()[:-window_size]
+    shift_keys = velocity_df.keys()[window_size:]
+
+    acceleration_df = velocity_df[shift_keys].copy()
 
     for key_lower, key_upper in zip(keys, shift_keys):
-        dt = key_upper - key_lower
-        velocity_df[key_upper] = (position_df.loc[kp_in_df,key_upper] - position_df.loc[kp_in_df,key_lower]) / dt
+        s = position_df.loc[kp_in_df, key_upper] - position_df.loc[kp_in_df, key_lower]
+        u = velocity_df.loc[kp_in_df,key_lower]
+        v = velocity_df.loc[kp_in_df,key_upper]
+        a = (v**2 - u**2) / 2*s
+        acceleration_df[key_upper] = a
+
 
     return velocity_df, kp_in_df

@@ -1,10 +1,9 @@
-import numpy as np
 import trimesh
 import glooey
 
 import pyglet
 import trimesh.viewer
-from src.animal import AnimalStruct
+from src.animal import AnimalStruct, AnimalList
 from src.object import CollisionObj, CollisionObjTransform
 import numpy as np
 
@@ -15,7 +14,7 @@ class MultiViewer:
     Viewer for both the animal and the object in the collision frame, allows for lists of objects and animals
     """
 
-    def __init__(self, animal_list: [AnimalStruct], object_list: list[CollisionObj | CollisionObjTransform], frame_index, auto_play: bool = True, draw_legend: bool = True):
+    def __init__(self, animal_list: AnimalList, object_list: list[CollisionObj | CollisionObjTransform], frame_index, auto_play: bool = True, draw_legend: bool = True, draw_collision: bool = True):
         # create window with padding
         self.width, self.height = 960, 720
         window = self._create_window(width=self.width, height=self.height)
@@ -29,8 +28,8 @@ class MultiViewer:
         self.object_list = object_list
         self.animal_list = animal_list
 
-        min_frame = min([inst.get_frame_range()[0] for inst in [*self.animal_list, *self.object_list]])
-        max_frame = max([inst.get_frame_range()[1] for inst in [*self.animal_list, *self.object_list]])
+        min_frame = min([inst.get_frame_range()[0] for inst in [*self.animal_list.animals, *self.object_list]])
+        max_frame = max([inst.get_frame_range()[1] for inst in [*self.animal_list.animals, *self.object_list]])
 
         self._frame_range = (min_frame, max_frame)
         self._frame_index = max(frame_index, self._frame_range[0])
@@ -38,8 +37,8 @@ class MultiViewer:
         #Generate a scene with the combined geometries
         scene = trimesh.Scene()
 
-        scene, animal_frame_flag = self.update_animal(scene, self.animal_list, self._frame_index)
-        scene = self.update_obj(scene, self.object_list, self._frame_index)
+        scene = self._update_animal(scene, self.animal_list, self._frame_index)
+        scene = self._update_obj(scene, self.object_list, self._frame_index)
 
         self._scene_widget = trimesh.viewer.SceneWidget(scene)
         hbox.add(self._scene_widget)
@@ -51,9 +50,9 @@ class MultiViewer:
                                         anchor_y='bottom',
                                         font_size= window.height / 30)
 
-        self._legend = []
+
         if draw_legend:
-            self._update_legend(animal_frame_flag)
+            self._legend = self._update_legend(self.animal_list, self._frame_index)
         # self.label.draw()
         gui.add(hbox)
 
@@ -65,7 +64,7 @@ class MultiViewer:
         pyglet.app.run()
 
     @staticmethod
-    def update_obj(scene: trimesh.Scene, obj_list: list[CollisionObj | CollisionObjTransform], frame_idx: int):
+    def _update_obj(scene: trimesh.Scene, obj_list: list[CollisionObj | CollisionObjTransform], frame_idx: int):
 
         for obj_id, obj in enumerate(obj_list):
             # Check if the frame is present in the dict of object frames
@@ -87,18 +86,40 @@ class MultiViewer:
         return scene
 
     @staticmethod
-    def update_animal(scene: trimesh.Scene, animal_list: list[AnimalStruct], frame_idx: int):
-        animal_frame_flag = []
+    def _update_animal(scene: trimesh.Scene, animal_list: AnimalList, frame_idx: int):
+
+        for animal in animal_list.where_frame_exist(frame_idx):
+            # Check if the frame is present in the dict of object frames
+            animal_name_list = [k for k in scene.geometry.keys() if "animal_" + animal.name in k]
+            # Only deletes geometry for updated animals
+            scene.delete_geometry(animal_name_list)
+
+            animal_geom = animal.generate_geometry(frame_idx=frame_idx)
+            if animal_geom is not None:
+                animal_ray, animal_node = animal_geom
+
+                # Replace the current scene with the scene created in the animal class
+                scene.add_geometry(animal_ray, node_name="animal_ray",
+                                   geom_name=str(frame_idx) + "_animal_" + animal.name + "_ray")
+                scene.add_geometry(animal_node, node_name="animal_node",
+                                   geom_name=str(frame_idx) + "_animal_" + animal.name + "_node")
+
+
+
+        return scene
+
+    @staticmethod
+    def _update_collision(scene: trimesh.Scene, animal_list: list[AnimalStruct], obj_list: list[CollisionObj | CollisionObjTransform], frame_idx: int):
+
         for animal in animal_list:
-            flag = False
+
             # Check if the frame is present in the dict of object frames
             if animal.check_frame_exist(frame_idx):
-                animal_name_list = [k for k in scene.geometry.keys() if "animal_" + animal.name in k]
-                scene.delete_geometry(animal_name_list)
+                for obj in obj_list:
+                    animal_geom = animal.generate_geometry(frame_idx=frame_idx)
 
-                animal_geom = animal.generate_geometry(frame_idx=frame_idx)
                 if animal_geom is not None:
-                    flag = True
+
                     animal_ray, animal_node = animal_geom
 
                     # Replace the current scene with the scene created in the animal class
@@ -107,17 +128,17 @@ class MultiViewer:
                     scene.add_geometry(animal_node, node_name="animal_node",
                                        geom_name=str(frame_idx) + "_animal_" + animal.name + "_node")
 
-            animal_frame_flag.append(flag)
 
-        return scene, animal_frame_flag
 
-    def _update_legend(self, animal_frame_flag: list[bool]):
-        self._legend = []
-        origin = np.array([self.width / 20, self.height - (self.height / 10)])
-        width = self.width / 5
-        height = max(self.height / (2 * len(self.animal_list)), 12)
-        for flag, animal in zip(animal_frame_flag, self.animal_list):
-            if flag:
+        return scene
+
+    @staticmethod
+    def _update_legend(animal_list: AnimalList, frame_idx: int, width: int = 960, height: int = 720):
+        _legend = []
+        origin = np.array([width / 20, height - (height / 10)])
+        width = width / 5
+        height = max(height / (2 * len(animal_list.animals)), 12)
+        for animal in animal_list.where_frame_exist(frame_idx):
                 legend = pyglet.text.Label(animal.name,
                                            x=origin[0],
                                            y=origin[1],
@@ -126,17 +147,19 @@ class MultiViewer:
                                            anchor_y='bottom',
                                            height=height,
                                            width=width)
-                self._legend.append(legend)
+                _legend.append(legend)
                 origin -= np.array([0, height * 1.1])
+
+        return _legend
 
     def _callback(self, dt):
         #Update the frame counter
         self._frame_index = max((self._frame_index + 1) % self._frame_range[1], self._frame_range[0])
         self._label.text = "Frame: " + str(self._frame_index)
         self._scene_widget.do_undraw()
-        self._scene_widget.scene = self.update_obj(self._scene_widget.scene, self.object_list, self._frame_index)
-        self._scene_widget.scene, animal_frame_flag = self.update_animal(self._scene_widget.scene, self.animal_list, self._frame_index)
-        self._update_legend(animal_frame_flag)
+        self._scene_widget.scene = self._update_obj(self._scene_widget.scene, self.object_list, self._frame_index)
+        self._scene_widget.scene = self._update_animal(self._scene_widget.scene, self.animal_list, self._frame_index)
+        self._legend = self._update_legend(self.animal_list, self._frame_index)
 
         #Redraw the new scene
         self._scene_widget.do_draw()
