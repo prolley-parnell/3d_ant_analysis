@@ -1,9 +1,13 @@
+from typing import Optional
+
 import trimesh
 import glooey
+import trimesh.creation
 
 import pyglet
 import trimesh.viewer
 from src.animal import AnimalStruct, AnimalList
+from src.collision import CollisionDetector
 from src.object import CollisionObj, CollisionObjTransform
 import numpy as np
 
@@ -14,7 +18,15 @@ class MultiViewer:
     Viewer for both the animal and the object in the collision frame, allows for lists of objects and animals
     """
 
-    def __init__(self, animal_list: AnimalList, object_list: list[CollisionObj | CollisionObjTransform], frame_index, auto_play: bool = True, draw_legend: bool = True, draw_collision: bool = True):
+    def __init__(self,
+                 animal_list: AnimalList,
+                 object_list: list[CollisionObj | CollisionObjTransform],
+                 frame_index,
+                 auto_play: bool = True,
+                 draw_legend: bool = True,
+                 collision: Optional[CollisionDetector] = None,
+                 axis: Optional[np.ndarray] = None):
+
         # create window with padding
         self.width, self.height = 960, 720
         window = self._create_window(width=self.width, height=self.height)
@@ -25,11 +37,11 @@ class MultiViewer:
         hbox.set_padding(5)
 
         # scene widget for changing camera location
-        self.object_list = object_list
-        self.animal_list = animal_list
+        self._object_list = object_list
+        self._animal_list = animal_list
 
-        min_frame = min([inst.get_frame_range()[0] for inst in [*self.animal_list.animals, *self.object_list]])
-        max_frame = max([inst.get_frame_range()[1] for inst in [*self.animal_list.animals, *self.object_list]])
+        min_frame = min([inst.get_frame_range()[0] for inst in [*self._animal_list.animals, *self._object_list]])
+        max_frame = max([inst.get_frame_range()[1] for inst in [*self._animal_list.animals, *self._object_list]])
 
         self._frame_range = (min_frame, max_frame)
         self._frame_index = max(frame_index, self._frame_range[0])
@@ -37,8 +49,14 @@ class MultiViewer:
         #Generate a scene with the combined geometries
         scene = trimesh.Scene()
 
-        scene = self._update_animal(scene, self.animal_list, self._frame_index)
-        scene = self._update_obj(scene, self.object_list, self._frame_index)
+        if axis is not None:
+            scene.add_geometry(trimesh.creation.axis(origin_size=0.6, transform=axis))
+
+        self._collision_detector = collision
+
+        scene = self._update_animal(scene, self._animal_list, self._frame_index)
+        scene = self._update_obj(scene, self._object_list, self._frame_index)
+        scene = self._update_collision(scene, self._collision_detector, self._frame_index)
 
         self._scene_widget = trimesh.viewer.SceneWidget(scene)
         hbox.add(self._scene_widget)
@@ -52,7 +70,7 @@ class MultiViewer:
 
 
         if draw_legend:
-            self._legend = self._update_legend(self.animal_list, self._frame_index)
+            self._legend = self._update_legend(self._animal_list, self._frame_index)
         # self.label.draw()
         gui.add(hbox)
 
@@ -109,24 +127,17 @@ class MultiViewer:
         return scene
 
     @staticmethod
-    def _update_collision(scene: trimesh.Scene, animal_list: list[AnimalStruct], obj_list: list[CollisionObj | CollisionObjTransform], frame_idx: int):
+    def _update_collision(scene: trimesh.Scene, collision_detector: Optional[CollisionDetector] , frame_idx: int):
 
-        for animal in animal_list:
-
+        if collision_detector is not None:
+            frame_collision = collision_detector.visualise_collision_rays(frame_idx)
             # Check if the frame is present in the dict of object frames
-            if animal.check_frame_exist(frame_idx):
-                for obj in obj_list:
-                    animal_geom = animal.generate_geometry(frame_idx=frame_idx)
+            if frame_collision is not None:
+                ray, animal = frame_collision
 
-                if animal_geom is not None:
-
-                    animal_ray, animal_node = animal_geom
-
-                    # Replace the current scene with the scene created in the animal class
-                    scene.add_geometry(animal_ray, node_name="animal_ray",
-                                       geom_name=str(frame_idx) + "_animal_" + animal.name + "_ray")
-                    scene.add_geometry(animal_node, node_name="animal_node",
-                                       geom_name=str(frame_idx) + "_animal_" + animal.name + "_node")
+                # Replace the current scene with the scene created in the animal class
+                scene.add_geometry(ray, node_name="collision_ray",
+                                   geom_name=str(frame_idx) + "_collision_")
 
 
 
@@ -157,9 +168,11 @@ class MultiViewer:
         self._frame_index = max((self._frame_index + 1) % self._frame_range[1], self._frame_range[0])
         self._label.text = "Frame: " + str(self._frame_index)
         self._scene_widget.do_undraw()
-        self._scene_widget.scene = self._update_obj(self._scene_widget.scene, self.object_list, self._frame_index)
-        self._scene_widget.scene = self._update_animal(self._scene_widget.scene, self.animal_list, self._frame_index)
-        self._legend = self._update_legend(self.animal_list, self._frame_index)
+        self._scene_widget.scene = self._update_obj(self._scene_widget.scene, self._object_list, self._frame_index)
+        self._scene_widget.scene = self._update_animal(self._scene_widget.scene, self._animal_list, self._frame_index)
+        self._scene_widget.scene = self._update_collision(self._scene_widget.scene, self._collision_detector, self._frame_index)
+
+        self._legend = self._update_legend(self._animal_list, self._frame_index)
 
         #Redraw the new scene
         self._scene_widget.do_draw()

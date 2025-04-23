@@ -120,7 +120,8 @@ class AnimalStruct:
         # Find all links in skeleton and assign names
         for node in self._connectivity_dict:
             parent_name = self._connectivity_dict[node]['parent']
-            if parent_name is not None and self._pose_dict[frame_idx][node]['score'] > 0.03: #TODO check that this threshold still applies
+            # if parent_name is not None and self._pose_dict[frame_idx][node]['score'] > 0.03: #TODO check that this threshold still applies
+            if parent_name is not None:
 
                 # Assign the direction based on distance to core/anchor node
                 point_a = self._pose_dict[frame_idx][parent_name]['xyz']
@@ -342,6 +343,13 @@ class AnimalList:
     @property
     def animal_name_list(self):
         return self._animal_name_list
+
+    def animal_colour(self, animal_name: Optional[str] = None) -> [np.ndarray]:
+        if animal_name is None:
+            colour = [animal.colour for animal in self._animals]
+        else:
+            colour = [animal.colour for animal in self._animals if animal.name in animal_name]
+        return colour
 
     def where_frame_exist(self, frame_idx: int) -> list[AnimalStruct]:
         """ :returns A list of animals where the animal is in the frame"""
