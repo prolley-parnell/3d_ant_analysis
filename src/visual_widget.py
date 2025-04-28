@@ -25,11 +25,15 @@ class MultiViewer:
                  auto_play: bool = True,
                  draw_legend: bool = True,
                  collision: Optional[CollisionDetector] = None,
-                 axis: Optional[np.ndarray] = None):
+                 axis: Optional[np.ndarray] = None,
+                 fps: Optional[float] = 30.0,
+                 hold_window: Optional[int] = 20):
 
         # create window with padding
         self.width, self.height = 960, 720
         window = self._create_window(width=self.width, height=self.height)
+
+        self._hold_window = hold_window
 
         gui = glooey.Gui(window)
 
@@ -56,7 +60,7 @@ class MultiViewer:
 
         scene = self._update_animal(scene, self._animal_list, self._frame_index)
         scene = self._update_obj(scene, self._object_list, self._frame_index)
-        scene = self._update_collision(scene, self._collision_detector, self._frame_index)
+        scene = self._update_collision(scene, self._collision_detector, self._frame_index, self._hold_window)
 
         self._scene_widget = trimesh.viewer.SceneWidget(scene)
         hbox.add(self._scene_widget)
@@ -75,7 +79,7 @@ class MultiViewer:
         gui.add(hbox)
 
         if auto_play:
-            pyglet.clock.schedule_interval(self._callback, 1.0 / 30)
+            pyglet.clock.schedule_interval(self._callback, 1.0 / fps)
 
 
         self._scene_widget.do_draw()
@@ -106,20 +110,20 @@ class MultiViewer:
     @staticmethod
     def _update_animal(scene: trimesh.Scene, animal_list: AnimalList, frame_idx: int):
 
+        animal_name_list = [k for k in scene.geometry.keys() if "animal_" in k]
+        # Only deletes geometry for updated animals
+        scene.delete_geometry(animal_name_list)
+
         for animal in animal_list.where_frame_exist(frame_idx):
             # Check if the frame is present in the dict of object frames
-            animal_name_list = [k for k in scene.geometry.keys() if "animal_" + animal.name in k]
-            # Only deletes geometry for updated animals
-            scene.delete_geometry(animal_name_list)
 
             animal_geom = animal.generate_geometry(frame_idx=frame_idx)
             if animal_geom is not None:
                 animal_ray, animal_node = animal_geom
 
-                # Replace the current scene with the scene created in the animal class
-                scene.add_geometry(animal_ray, node_name="animal_ray",
+                scene.add_geometry(animal_ray, node_name=str(frame_idx) + "_animal_" + animal.name + "_ray",
                                    geom_name=str(frame_idx) + "_animal_" + animal.name + "_ray")
-                scene.add_geometry(animal_node, node_name="animal_node",
+                scene.add_geometry(animal_node, node_name=str(frame_idx) + "_animal_" + animal.name + "_node",
                                    geom_name=str(frame_idx) + "_animal_" + animal.name + "_node")
 
 
@@ -127,17 +131,25 @@ class MultiViewer:
         return scene
 
     @staticmethod
-    def _update_collision(scene: trimesh.Scene, collision_detector: Optional[CollisionDetector] , frame_idx: int):
+    def _update_collision(scene: trimesh.Scene, collision_detector: Optional[CollisionDetector] , frame_idx: int, hold_window: int):
 
         if collision_detector is not None:
+            collision_ray_list = [k for k in scene.geometry.keys() if "_collision-ray" in k]
+
+            collision_ray_delete = np.take(collision_ray_list, np.argwhere(
+                np.asarray([collision_ray.split('_')[0] for collision_ray in collision_ray_list], dtype=np.int16) < (
+                        frame_idx - hold_window)).flatten())
+            # Only deletes geometry for updated animals
+            scene.delete_geometry(collision_ray_delete)
+
             frame_collision = collision_detector.visualise_collision_rays(frame_idx)
             # Check if the frame is present in the dict of object frames
             if frame_collision is not None:
                 ray, animal = frame_collision
 
                 # Replace the current scene with the scene created in the animal class
-                scene.add_geometry(ray, node_name="collision_ray",
-                                   geom_name=str(frame_idx) + "_collision_")
+                scene.add_geometry(ray, node_name=str(frame_idx) + "_collision-ray",
+                                   geom_name=str(frame_idx) + "_collision-ray")
 
 
 
@@ -170,7 +182,7 @@ class MultiViewer:
         self._scene_widget.do_undraw()
         self._scene_widget.scene = self._update_obj(self._scene_widget.scene, self._object_list, self._frame_index)
         self._scene_widget.scene = self._update_animal(self._scene_widget.scene, self._animal_list, self._frame_index)
-        self._scene_widget.scene = self._update_collision(self._scene_widget.scene, self._collision_detector, self._frame_index)
+        self._scene_widget.scene = self._update_collision(self._scene_widget.scene, self._collision_detector, self._frame_index, self._hold_window)
 
         self._legend = self._update_legend(self._animal_list, self._frame_index)
 

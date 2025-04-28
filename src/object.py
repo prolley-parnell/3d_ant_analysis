@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 
 class CollisionObj:
 
-    def __init__(self, obj_folder: Path | str, units: str = "m"):
+    def __init__(self, obj_folder: Path | str, units: str = "mm"):
         """
         Initialise an object given by a folder of "obj" files into a dictionary of trimesh objects.
         :param obj_folder: Path to the folder containing the objects
