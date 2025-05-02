@@ -20,7 +20,15 @@ class CollisionDetector:
 
     def __init__(self, instance: Optional[InstanceLoader] = None,
                  animal_list: Optional[AnimalList] = None,
-                 obj_list: Optional[list[CollisionObj | CollisionObjTransform | trimesh.Trimesh]] = None):
+                 obj_list: Optional[list[CollisionObj | CollisionObjTransform | trimesh.Trimesh]] = None,
+                 node_of_interest: Optional[list[str]] = None):
+        """
+        :param instance: A class already containing the obj list and the animal list, this takes precedence over the animal list and obj_list if provided.
+        :param animal_list: A class containing the animal list
+        :param obj_list: A class containing the object list
+        :param node_of_interest: A list of strings of names of nodes to check for collisions, not rays but the key points.
+        """
+
 
         if instance is not None:
             self._animal_list = instance.animal_list
@@ -41,6 +49,8 @@ class CollisionDetector:
         max_frame = max([inst.get_frame_range()[1] for inst in instance_list])
 
         self._all_frames = range(min_frame, max_frame)
+
+        self._node_of_interest = node_of_interest
 
 
         self._dt = np.dtype([('Frame', np.int32), ('Track', np.str_, 16), ('ID', np.uint8), ('Limb', np.str_, 16), ('Norm', np.float64, 3),
@@ -112,12 +122,14 @@ class CollisionDetector:
 
             animals_in_frame = self._animal_list.where_frame_exist(frame_idx)
             collision_array = np.empty(0, dtype=self._dt)
+
             for animal in animals_in_frame:
                 #Check that the animal is in the frame
 
                 pose_ray_dict = animal.get_pose_ray(frame_idx)
 
                 if len(pose_ray_dict) > 0:
+
                     link_list = [*pose_ray_dict.keys()]
 
                     index_tri, index_ray, location = ri.intersects_id(
@@ -137,7 +149,6 @@ class CollisionDetector:
                         animal_collision['Limb'] = [link_list[ray] for ray in index_ray]
                         animal_collision['Norm'] = geom.face_normals[index_tri].squeeze().astype(np.float64)
                         animal_collision['Point'] = location.astype(np.float64)
-
 
                         collision_array = np.concatenate((collision_array, animal_collision), axis=0)
 
@@ -159,7 +170,7 @@ class CollisionDetector:
                 try:
                     frame_collision_array = future.result()
                 except Exception as exc:
-                    logger.error('%r generated an exception: %s' % (frame_input, exc.__traceback__))
+                    logger.exception('%r generated an exception:' % (frame_input), exc_info=exc)
                 else:
                     if not (frame_collision_array is None or len(frame_collision_array) == 0) :
                         _collision_array[n_collisions: n_collisions+len(frame_collision_array)] = frame_collision_array

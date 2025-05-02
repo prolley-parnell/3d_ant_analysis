@@ -280,7 +280,10 @@ class AnimalStruct:
 
         for frame in frame_idx:
             for name in node_list:
-                df.loc[name, frame] = self._pose_dict[frame][name]['xyz']
+                if frame in self._pose_dict.keys():
+                    df.loc[name, frame] = self._pose_dict[frame][name]['xyz']
+                else:
+                    df.loc[name, frame] = np.nan
 
         return df, node_list
 
@@ -354,5 +357,12 @@ class AnimalList:
     def where_frame_exist(self, frame_idx: int) -> list[AnimalStruct]:
         """ :returns A list of animals where the animal is in the frame"""
         return [animal for animal in self._animals if animal.check_frame_exist(frame_idx)]
+
+    def pre_load_ray(self):
+        """ Calculate all rays at once for all animals in the list"""
+        for animal in self._animals:
+            frames = animal.get_frame_range()
+            for frame in range(*frames):
+                animal.get_pose_ray(frame)
 
 

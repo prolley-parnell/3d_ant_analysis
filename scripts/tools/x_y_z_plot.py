@@ -3,6 +3,7 @@ import numpy as np
 np.set_printoptions(precision=3, suppress=True, threshold=150)
 import matplotlib.pyplot as plt
 import pandas as pd
+import scipy
 from src.animal import AnimalStruct
 
 class XYZPlot:
@@ -147,7 +148,7 @@ class KPPosition(XYZPlot):
         plt.show()
 
 
-def get_velocity_xyz_df(animal: AnimalStruct, frames: list[int] = None, node_list: list[str] = None, window_size: int = 3) -> (pd.DataFrame, list[str]):
+def get_velocity_xyz_df(animal: AnimalStruct, frames: list[int] = None, node_list: list[str] = None, window_size: int = 5) -> (pd.DataFrame, list[str]):
     """
     Return the velocity for the provided keypoints across the total frames in x,y and z
     :param animal: An instance of AnimalStruct
@@ -159,9 +160,12 @@ def get_velocity_xyz_df(animal: AnimalStruct, frames: list[int] = None, node_lis
 
     position_df, kp_in_df = animal.get_xyz_df(frames, node_list)
 
-    keys = position_df.keys()[:-window_size]
+    if window_size == 1:
+        keys = position_df.keys()
+    else:
+        keys = position_df.keys()[:-window_size+1]
 
-    velocity_df = pd.DataFrame().reindex_like(position_df[keys])
+    velocity_df = pd.DataFrame(dtype=np.float64).reindex_like(position_df[keys])
     acceleration_df = pd.DataFrame(dtype=np.float64).reindex_like(position_df[keys])
 
     u = 0
@@ -175,11 +179,13 @@ def get_velocity_xyz_df(animal: AnimalStruct, frames: list[int] = None, node_lis
                     if not p_end.isnull().any():
                         s = p_end - p_start
                         dt = key_upper - key
-                        a = np.asarray((2 * (s - u * dt)) / (dt ** 2), dtype=np.float64)
+                        v = np.asarray(s / dt, dtype=np.float64)
+                        a = np.asarray((v - u)/ dt, dtype=np.float64)
+                        # a = np.asarray((2 * (s - u * dt)) / (dt ** 2, dtype=np.float64)
 
                         acceleration_df.loc[kp, key] = a
                         acceleration_df.infer_objects(copy=False).ffill(axis=1, limit=window_size, inplace=True)
-                        v = u + a * dt
+                        # v = u + a * dt
                         velocity_df.loc[kp, key] = v
                         velocity_df.infer_objects(copy=False).ffill(axis=1, limit=window_size, inplace=True)
                         u = v
@@ -188,14 +194,20 @@ def get_velocity_xyz_df(animal: AnimalStruct, frames: list[int] = None, node_lis
             else:
                 print(f"Starting point is invalid: Node: {kp}, Frame: {key}")
 
+    filter_for_outlier = True
+    if filter_for_outlier:
+        zsc = acceleration_df.apply(scipy.stats.zscore, axis='columns', result_type='broadcast', args=(0, 0, 'omit'))
+
 
     return velocity_df, acceleration_df, kp_in_df
 
 def xyz_to_mag_df(dataframe_in: pd.DataFrame, node_list: list[str] = None) -> pd.DataFrame:
     """ Convert a dataframe generated in the xyz into a magnitude dataframe """
-
-    dataframe_out = pd.DataFrame().reindex_like(dataframe_in)
+    if node_list is None:
+        node_list = dataframe_in.index.levels[0]
     keys = dataframe_in.keys()
+    dataframe_out = pd.DataFrame(index=node_list, columns=keys)
+
     for key in keys:
         for kp in node_list:
             xyz = dataframe_in.loc[kp, key]
