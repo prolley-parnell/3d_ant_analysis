@@ -5,7 +5,7 @@ np.set_printoptions(precision=3, suppress=True, threshold=150)
 import matplotlib.pyplot as plt
 import pandas as pd
 import scipy
-from src.animal import AnimalStruct
+from src.animal import AnimalStruct, AnimalDataFrame
 
 
 class MagnitudePlot:
@@ -33,11 +33,12 @@ class CorrelationPlot(MagnitudePlot):
 
         frame_full = [*range(np.min(frame_range), np.max(frame_range) + 1)]
 
-        position_df, kp_in_df = animal.get_xyz_df(frame_full, [node_a, node_b])
+        # position_df, kp_in_df = animal.get_xyz_df(frame_full, [node_a, node_b])
+        adf = AnimalDataFrame(animal, frame_full, [node_a, node_b], 1)
+        position_df = adf.position_xyz(clean=True)
 
         step = range(*min_max)
         correlation_df = pd.DataFrame(None, index=['x', 'y', 'z'], columns=step)
-
 
 
         for shift in step:
@@ -48,7 +49,7 @@ class CorrelationPlot(MagnitudePlot):
 
         self.correlation_df = correlation_df
 
-        super().__init__(correlation_df, kp_in_df)
+        super().__init__(correlation_df, adf.kp_in_df)
 
         self.ax.set_ylabel('Pearsons Correlation')
         plt.show()

@@ -4,8 +4,10 @@ np.set_printoptions(precision=3, suppress=True, threshold=150)
 import matplotlib.pyplot as plt
 import pandas as pd
 import scipy
-from src.animal import AnimalStruct
-
+from src.animal import AnimalStruct, AnimalDataFrame
+import logging
+logger = logging.getLogger(__name__)
+#TODO: Update all the class descriptions to match updated function
 class XYZPlot:
     def __init__(self, data_frame, kp_list):
         """
@@ -49,90 +51,101 @@ class MagnitudePlot:
 
 
 class KPDisplaceMag(MagnitudePlot):
-    def __init__(self, animal: AnimalStruct, frames: list[int] = None, node: list[str] = None, window_size:int = 5):
+    def __init__(self, animal: AnimalStruct, frames: list[int] = None, node: list[str] = None, window_size:int = 1, filter_for_outlier=False):
         """
         Plot class to visualise the displacement of animal keypoints across the frames as a magnitude
         :param animal: AnimalStruct instance to plot
         :param frames: list of frames to plot, defaults to None so all are plotted
         :param node: list of nodes to plot, defaults to None so all are plotted
-        :param window_size: Time window to average over, defaults to 5 steps, not necessarily 5 frames difference.
+        :param window_size: Time window to average over, defaults to 1 steps, not necessarily 1 frames difference.
         """
 
-        position_df, kp_in_df = animal.get_xyz_df(frames, node)
-        magnitude_df = xyz_to_mag_df(position_df, kp_in_df)
-        super().__init__(magnitude_df, kp_in_df)
+        adf = AnimalDataFrame(animal, frames, node, window_size)
+        magnitude_df = adf.displace_mag(filter_for_outlier)
+
+        super().__init__(magnitude_df, adf.kp_in_df)
+
         self.ax.set_ylabel('Displacement Magnitude')
         plt.show()
 
 class KPVelocityMag(MagnitudePlot):
-    def __init__(self, animal: AnimalStruct, frames: list[int] = None, node: list[str] = None, window_size:int = 5):
+    def __init__(self, animal: AnimalStruct, frames: list[int] = None, node: list[str] = None, window_size:int = 1, filter_for_outlier=False):
         """
         Plot class to visualise the velocity of animal keypoints across the frames as a magnitude
         :param animal: AnimalStruct instance to plot
         :param frames: list of frames to plot, defaults to None so all are plotted
         :param node: list of nodes to plot, defaults to None so all are plotted
-        :param window_size: Time window to average over, defaults to 5 steps, not necessarily 5 frames difference.
+        :param window_size: Time window to average over, defaults to 1 steps, not necessarily 1 frames difference.
         """
 
-        velocity_df, acceleration_df, kp_in_df = get_velocity_xyz_df(animal, frames, node, window_size)
-        magnitude_df = xyz_to_mag_df(velocity_df, kp_in_df)
-        super().__init__(magnitude_df, kp_in_df)
+        # position_df, velocity_df, acceleration_df, kp_in_df = animal.get_motion_df(frames, node, window_size, filter_for_outlier)
+        # magnitude_df = xyz_to_mag_df(velocity_df, kp_in_df)
+
+        adf = AnimalDataFrame(animal, frames, node, window_size)
+        magnitude_df = adf.velocity_mag(filter_for_outlier)
+
+        super().__init__(magnitude_df, adf.kp_in_df)
         self.ax.set_ylabel('Velocity Magnitude')
         plt.show()
 
 class KPAccelerationMag(MagnitudePlot):
-    def __init__(self, animal: AnimalStruct, frames: list[int] = None, node: list[str] = None, window_size:int = 5):
+    def __init__(self, animal: AnimalStruct, frames: list[int] = None, node: list[str] = None, window_size:int = 1, filter_for_outlier=False):
         """
         Plot class to visualise the acceleration of animal keypoints across the frames as a magnitude
         :param animal: AnimalStruct instance to plot
         :param frames: list of frames to plot, defaults to None so all are plotted
         :param node: list of nodes to plot, defaults to None so all are plotted
-        :param window_size: Time window to average over, defaults to 5 steps, not necessarily 5 frames difference.
+        :param window_size: Time window to average over, defaults to 1 steps, not necessarily 1 frames difference.
         """
 
-        velocity_df, acceleration_df, kp_in_df = get_velocity_xyz_df(animal, frames, node, window_size)
-        magnitude_df = xyz_to_mag_df(acceleration_df, kp_in_df)
-        super().__init__(magnitude_df, kp_in_df)
+        adf = AnimalDataFrame(animal, frames, node, window_size)
+        acceleration_df = adf.acceleration_mag(filter_for_outlier)
+        super().__init__(acceleration_df, adf.kp_in_df)
         self.ax.set_ylabel('Acceleration Magnitude')
         plt.show()
 
 
 class KPAccXYZ(XYZPlot):
-    def __init__(self, animal: AnimalStruct, frames: list[int] = None, node: list[str] = None, window_size:int = 5):
+    def __init__(self, animal: AnimalStruct, frames: list[int] = None, node: list[str] = None, window_size:int = 1, filter_for_outlier=False):
         """
         Plot class to visualise the acceleration of animal keypoints across the frames in the x, y, and z axes.
         :param animal: AnimalStruct instance to plot
         :param frames: list of frames to plot, defaults to None so all are plotted
         :param node: list of nodes to plot, defaults to None so all are plotted
-        :param window_size: Time window to average over, defaults to 5 steps, not necessarily 5 frames difference.
+        :param window_size: Time window to average over, defaults to 1 steps, not necessarily 1 frames difference.
         """
 
-        velocity_df, acceleration_df, kp_in_df = get_velocity_xyz_df(animal, frames, node, window_size)
-        super().__init__(acceleration_df, kp_in_df)
+        adf = AnimalDataFrame(animal, frames, node, window_size)
+        acceleration_df = adf.acceleration_xyz(filter_for_outlier)
+
+        super().__init__(acceleration_df, adf.kp_in_df)
         self.ax_x.set_ylabel('X Acceleration')
         self.ax_y.set_ylabel('Y Acceleration')
         self.ax_z.set_ylabel('Z Acceleration')
         plt.show()
 
 class KPVelocityXYZ(XYZPlot):
-    def __init__(self, animal: AnimalStruct, frames: list[int] = None, node: list[str] = None, window_size:int = 5):
+    def __init__(self, animal: AnimalStruct, frames: list[int] = None, node: list[str] = None, window_size:int = 1, filter_for_outlier=False):
         """
         Plot class to visualise the velocity of animal keypoints across the frames in the x, y, and z axes.
         :param animal: AnimalStruct instance to plot
         :param frames: list of frames to plot, defaults to None so all are plotted
         :param node: list of nodes to plot, defaults to None so all are plotted
-        :param window_size: Time window to average over, defaults to 5 steps, not necessarily 5 frames difference.
+        :param window_size: Time window to average over, defaults to 1 steps, not necessarily 1 frames difference.
         """
 
-        velocity_df, acceleration_df, kp_in_df = get_velocity_xyz_df(animal, frames, node, window_size)
-        super().__init__(velocity_df, kp_in_df)
+        adf = AnimalDataFrame(animal, frames, node, window_size)
+        velocity_df = adf.velocity_xyz(filter_for_outlier)
+
+        super().__init__(velocity_df, adf.kp_in_df)
         self.ax_x.set_ylabel('X Velocity')
         self.ax_y.set_ylabel('Y Velocity')
         self.ax_z.set_ylabel('Z Velocity')
         plt.show()
 
-class KPPosition(XYZPlot):
-    def __init__(self, animal: AnimalStruct, frames: list[int] = None, node: list[str] = None):
+
+class KPDisplaceXYZ(XYZPlot):
+    def __init__(self, animal: AnimalStruct, frames: list[int] = None, node: list[str] = None, window_size:int = 1, filter_for_outlier=False):
         """
         Plot class instance for visualising the position in X, Y, and Z coordinates.
         :param animal: AnimalStruct instance to plot
@@ -140,78 +153,30 @@ class KPPosition(XYZPlot):
         :param node: list of nodes to plot, defaults to None so all are plotted
         """
 
-        position_df, kp_in_df = animal.get_xyz_df(frames, node)
-        super().__init__(position_df, kp_in_df)
+        adf = AnimalDataFrame(animal, frames, node, window_size)
+        displace_df = adf.displace_xyz(filter_for_outlier)
+
+        super().__init__(displace_df, adf.kp_in_df)
         self.ax_x.set_ylabel('X Position')
         self.ax_y.set_ylabel('Y Position')
         self.ax_z.set_ylabel('Z Position')
         plt.show()
 
+class KPPositionXYZ(XYZPlot):
+    def __init__(self, animal: AnimalStruct, frames: list[int] = None, node: list[str] = None, window_size:int = 1, filter_for_outlier=False):
+        """
+        Plot class instance for visualising the position in X, Y, and Z coordinates.
+        :param animal: AnimalStruct instance to plot
+        :param frames: list of frames to plot, defaults to None so all are plotted
+        :param node: list of nodes to plot, defaults to None so all are plotted
+        """
 
-def get_velocity_xyz_df(animal: AnimalStruct, frames: list[int] = None, node_list: list[str] = None, window_size: int = 5) -> (pd.DataFrame, list[str]):
-    """
-    Return the velocity for the provided keypoints across the total frames in x,y and z
-    :param animal: An instance of AnimalStruct
-    :param frames: A list of frame numbers to plot, defaults to all frames
-    :param node_list: A list of node names to plot, defaults to None, resulting in all nodes plotted
-    :param window_size: The size of the window size to use to get the average velocity, defaults to 3
-    :return: (pd.DataFrame, list[str]) velocity dataframe, list of node names
-    """
+        adf = AnimalDataFrame(animal, frames, node, window_size)
+        position_df = adf.position_xyz(filter_for_outlier)
 
-    position_df, kp_in_df = animal.get_xyz_df(frames, node_list)
+        super().__init__(position_df, adf.kp_in_df)
+        self.ax_x.set_ylabel('X Position')
+        self.ax_y.set_ylabel('Y Position')
+        self.ax_z.set_ylabel('Z Position')
+        plt.show()
 
-    if window_size == 1:
-        keys = position_df.keys()
-    else:
-        keys = position_df.keys()[:-window_size+1]
-
-    velocity_df = pd.DataFrame(dtype=np.float64).reindex_like(position_df[keys])
-    acceleration_df = pd.DataFrame(dtype=np.float64).reindex_like(position_df[keys])
-
-    u = 0
-    for key in keys:
-        key_upper = key + window_size
-        for kp in kp_in_df:
-            p_start = position_df.loc[kp, key]
-            if not p_start.isnull().any():
-                if position_df.keys().__contains__(key_upper):
-                    p_end = position_df.loc[kp, key_upper]
-                    if not p_end.isnull().any():
-                        s = p_end - p_start
-                        dt = key_upper - key
-                        v = np.asarray(s / dt, dtype=np.float64)
-                        a = np.asarray((v - u)/ dt, dtype=np.float64)
-                        # a = np.asarray((2 * (s - u * dt)) / (dt ** 2, dtype=np.float64)
-
-                        acceleration_df.loc[kp, key] = a
-                        acceleration_df.infer_objects(copy=False).ffill(axis=1, limit=window_size, inplace=True)
-                        # v = u + a * dt
-                        velocity_df.loc[kp, key] = v
-                        velocity_df.infer_objects(copy=False).ffill(axis=1, limit=window_size, inplace=True)
-                        u = v
-                    else:
-                        print(f"End point is invalid: Node: {kp}, Frame: {key_upper}")
-            else:
-                print(f"Starting point is invalid: Node: {kp}, Frame: {key}")
-
-    filter_for_outlier = True
-    if filter_for_outlier:
-        zsc = acceleration_df.apply(scipy.stats.zscore, axis='columns', result_type='broadcast', args=(0, 0, 'omit'))
-
-
-    return velocity_df, acceleration_df, kp_in_df
-
-def xyz_to_mag_df(dataframe_in: pd.DataFrame, node_list: list[str] = None) -> pd.DataFrame:
-    """ Convert a dataframe generated in the xyz into a magnitude dataframe """
-    if node_list is None:
-        node_list = dataframe_in.index.levels[0]
-    keys = dataframe_in.keys()
-    dataframe_out = pd.DataFrame(index=node_list, columns=keys)
-
-    for key in keys:
-        for kp in node_list:
-            xyz = dataframe_in.loc[kp, key]
-            if not xyz.isnull().any():
-                dataframe_out.loc[kp,key] = np.linalg.norm(xyz)
-
-    return dataframe_out

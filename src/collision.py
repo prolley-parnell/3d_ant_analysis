@@ -57,7 +57,7 @@ class CollisionDetector:
                              ('Point', np.float64, 3)])
 
         collision_list = self._calculate_collision_mt()
-        df = DataFrame(collision_list.squeeze().tolist(), columns=self._dt.names)
+        df = DataFrame(collision_list.flatten().tolist(), columns=self._dt.names)
         df.set_index(["Frame", "Track"], inplace=True)
         self._collision_df = df
 
@@ -109,6 +109,9 @@ class CollisionDetector:
         point of collision.
         '''
 
+        animals_in_frame = self._animal_list.where_frame_exist(frame_idx)
+        _collision_array = np.empty(100, dtype=self._dt)
+        n_collisions = 0
         for obj in self._obj_list: #TODO: currently only one object at a time
             if type(obj) is trimesh.Trimesh:
                 geom = obj
@@ -119,9 +122,6 @@ class CollisionDetector:
                 geom = obj.generate_scene(frame_idx).to_mesh()
             # ri = trimesh.ray.ray_pyembree.RayMeshIntersector(geom)
             ri = trimesh.ray.ray_triangle.RayMeshIntersector(geom)
-
-            animals_in_frame = self._animal_list.where_frame_exist(frame_idx)
-            collision_array = np.empty(0, dtype=self._dt)
 
             for animal in animals_in_frame:
                 #Check that the animal is in the frame
@@ -150,20 +150,21 @@ class CollisionDetector:
                         animal_collision['Norm'] = geom.face_normals[index_tri].squeeze().astype(np.float64)
                         animal_collision['Point'] = location.astype(np.float64)
 
-                        collision_array = np.concatenate((collision_array, animal_collision), axis=0)
+                        # collision_array = np.concatenate((collision_array, animal_collision), axis=0)
+                        _collision_array[n_collisions: n_collisions + len(index_ray)] = animal_collision
+                        n_collisions += len(index_ray)
 
-                return collision_array
+        return _collision_array[np.argwhere(_collision_array)].flatten()
 
 
     def _calculate_collision_mt(self):
-        """ Given a path to a folder containing ".obj" or ".dae" files with the name of the corresponding frame, load these and
-        convert to a dict of trimesh"""
+        """ Given an animal and object, h"""
         # scan all the file names in this directory
 
         frame_list = self._all_frames
         _collision_array = np.empty(10000, dtype=self._dt) #Preallocate an empty array up to 10000 collisions
         n_collisions = 0
-        with (concurrent.futures.ThreadPoolExecutor(max_workers=20) as executor):
+        with (concurrent.futures.ThreadPoolExecutor(max_workers=6) as executor):
             future_to_path = {executor.submit(self._calculate_collisions, frame_idx): frame_idx for frame_idx in frame_list}
             for future in concurrent.futures.as_completed(future_to_path):
                 frame_input = future_to_path[future]
@@ -176,5 +177,27 @@ class CollisionDetector:
                         _collision_array[n_collisions: n_collisions+len(frame_collision_array)] = frame_collision_array
                         # = np.concatenate((_collision_array, frame_collision_array), axis=0)
                         n_collisions += len(frame_collision_array)
+
+        return _collision_array[np.argwhere(_collision_array)]
+
+    def _calculate_collision_st(self):
+        """ Given a path to a folder containing ".obj" or ".dae" files with the name of the corresponding frame, load these and
+        convert to a dict of trimesh"""
+        # scan all the file names in this directory
+
+        frame_list = self._all_frames
+        _collision_array = np.empty(10000, dtype=self._dt) #Preallocate an empty array up to 10000 collisions
+        n_collisions = 0
+
+        for frame_idx in frame_list:
+            try:
+                frame_collision_array = self._calculate_collisions(frame_idx)
+            except Exception as exc:
+                logger.exception('%r generated an exception:' % (frame_idx), exc_info=exc)
+            else:
+                if not (frame_collision_array is None or len(frame_collision_array) == 0) :
+                    _collision_array[n_collisions: n_collisions+len(frame_collision_array)] = frame_collision_array
+                    # = np.concatenate((_collision_array, frame_collision_array), axis=0)
+                    n_collisions += len(frame_collision_array)
 
         return _collision_array[np.argwhere(_collision_array)]
