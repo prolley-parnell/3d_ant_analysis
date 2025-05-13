@@ -294,6 +294,12 @@ class AnimalDataFrame:
                  frames: list[int] = None,
                  node_list: list[str] = None,
                  window_size: int = 1):
+        """
+        :param animal:
+        :param frames: A sequential frame window to query
+        :param node_list:
+        :param window_size:
+        """
 
         self._animal = animal
         self._frames = frames

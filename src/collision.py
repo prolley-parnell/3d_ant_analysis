@@ -53,10 +53,10 @@ class CollisionDetector:
         self._node_of_interest = node_of_interest
 
 
-        self._dt = np.dtype([('Frame', np.int32), ('Track', np.str_, 16), ('ID', np.uint8), ('Limb', np.str_, 16), ('Norm', np.float64, 3),
+        self._dt = np.dtype([('Frame', np.int32), ('Track', np.str_, 50), ('ID', np.uint8), ('Limb', np.str_, 50), ('Norm', np.float64, 3),
                              ('Point', np.float64, 3)])
 
-        collision_list = self._calculate_collision_mt()
+        collision_list = self._calculate_collision_st()
         df = DataFrame(collision_list.flatten().tolist(), columns=self._dt.names)
         df.set_index(["Frame", "Track"], inplace=True)
         self._collision_df = df
@@ -127,16 +127,14 @@ class CollisionDetector:
                 #Check that the animal is in the frame
 
                 pose_ray_dict = animal.get_pose_ray(frame_idx)
+                link_list = [ray for ray in pose_ray_dict.keys() if any(node in ray for node in self._node_of_interest)]
 
-                if len(pose_ray_dict) > 0:
-
-                    link_list = [*pose_ray_dict.keys()]
+                if len(link_list) > 0:
 
                     index_tri, index_ray, location = ri.intersects_id(
                         ray_origins=[pose_ray_dict[link]['origin'] for link in link_list],
                         ray_directions=[pose_ray_dict[link]['vector'] for link in link_list],
                         multiple_hits=False,
-                        max_hits=10,
                         return_locations=True
                     )
 
@@ -153,8 +151,10 @@ class CollisionDetector:
                         # collision_array = np.concatenate((collision_array, animal_collision), axis=0)
                         _collision_array[n_collisions: n_collisions + len(index_ray)] = animal_collision
                         n_collisions += len(index_ray)
-
-        return _collision_array[np.argwhere(_collision_array)].flatten()
+        if n_collisions > 0:
+            return _collision_array[np.argwhere(_collision_array)].flatten()
+        else:
+            return []
 
 
     def _calculate_collision_mt(self):

@@ -6,6 +6,8 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import scipy
 from src.animal import AnimalStruct, AnimalDataFrame
+import logging
+logger = logging.getLogger(__name__)
 
 
 class MagnitudePlot:
@@ -32,23 +34,29 @@ class MagnitudePlot:
 
 
 class CorrelationPlot(MagnitudePlot):
-    def __init__(self, animal: AnimalStruct, node_pairs: list[tuple[str, str]] = [('a_L2', 'm_L1')], min_max: tuple[int, int] = (-50,50), frame_range: tuple[int, int] = None):
+    def __init__(self, animal: AnimalStruct, node_pairs: list[tuple[str, str]] = [('a_L2', 'm_L1')], min_max: tuple[int, int] = (-50,50), frame_range: tuple[int, int] = None, frame_indices: list[int]=None):
 
         if frame_range is None:
             frame_range = animal.frames
 
         frame_full = [*range(np.min(frame_range), np.max(frame_range) + 1)]
 
+        if frame_indices is None:
+            frame_indices = frame_full
+
+        frame_indices = np.unique(frame_indices)
+
         adf = AnimalDataFrame(animal, frame_full, np.unique(node_pairs).tolist(), 1)
         position_df = adf.position_xyz(clean=True)
-
+        index_position_df = pd.DataFrame(None, columns=position_df.columns, index=position_df.index, dtype=np.float64)
+        index_position_df.loc[:, frame_indices] = position_df.loc[:, frame_indices].values
         step = range(*min_max)
         mi = pd.MultiIndex.from_product([["%s_%s" % node_pair for node_pair in node_pairs], ['x', 'y', 'z']],
                                         names=['Node', 'Axis'])
         correlation_df = pd.DataFrame(None, index=mi, columns=step, dtype=np.float64)
 
         for shift in step:
-            shifted_df = position_df.shift(periods=shift, axis='columns')
+            shifted_df = index_position_df.shift(periods=shift, axis='columns')
             for (node_a, node_b) in node_pairs:
                 correlation_df.loc[["%s_%s" % (node_a, node_b)], shift] = position_df.loc[node_a].corrwith(
                     shifted_df.loc[node_b], axis=1, drop=False, method='spearman').values
