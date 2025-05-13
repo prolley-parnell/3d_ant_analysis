@@ -9,7 +9,7 @@ from src.animal import AnimalStruct, AnimalDataFrame
 
 
 class MagnitudePlot:
-    def __init__(self, data_frame, kp_list):
+    def __init__(self, data_frame, node_pair_list):
         """
         Plot tool class, pass  DataFrame object with the top level labels as the name of the nodes in kp_list.
          Plot all columns included
@@ -17,46 +17,50 @@ class MagnitudePlot:
         :param kp_list: the list of keypoints to plot.
         """
 
-        self.fig, self.ax = plt.subplots(1,1,figsize=(9, 3), sharex=True)
+        n_ax = len(node_pair_list)
+        self.fig, self.ax = plt.subplots(n_ax,1,figsize=(7, 3*n_ax),
+                                         layout='constrained',
+                                         sharex=False,
+                                         sharey=True)
 
-        for axis in data_frame.index.values:
-            self.ax.plot(axis, data=data_frame.T.dropna(), label=axis)
-        self.ax.legend()
-        self.ax.set_xlabel('Frame Offset')
+        for i, node_pair in enumerate(node_pair_list):
+            self.ax[i].plot("%s_%s" % node_pair, data=data_frame.T.dropna(), label=['x', 'y', 'z'])
+            self.ax[i].set_xlabel(f'{node_pair[1]} with respect to {node_pair[0]}')
+        self.ax[0].legend()
+
+
 
 
 class CorrelationPlot(MagnitudePlot):
-    def __init__(self, animal: AnimalStruct, node_a: str = 'a_L2', node_b: str = 'm_L1', min_max: tuple[int, int] = (-50,50), frame_range: tuple[int, int] = None):
+    def __init__(self, animal: AnimalStruct, node_pairs: list[tuple[str, str]] = [('a_L2', 'm_L1')], min_max: tuple[int, int] = (-50,50), frame_range: tuple[int, int] = None):
 
         if frame_range is None:
             frame_range = animal.frames
 
         frame_full = [*range(np.min(frame_range), np.max(frame_range) + 1)]
 
-        # position_df, kp_in_df = animal.get_xyz_df(frame_full, [node_a, node_b])
-        adf = AnimalDataFrame(animal, frame_full, [node_a, node_b], 1)
+        adf = AnimalDataFrame(animal, frame_full, np.unique(node_pairs).tolist(), 1)
         position_df = adf.position_xyz(clean=True)
 
         step = range(*min_max)
-        correlation_df = pd.DataFrame(None, index=['x', 'y', 'z'], columns=step)
-
+        mi = pd.MultiIndex.from_product([["%s_%s" % node_pair for node_pair in node_pairs], ['x', 'y', 'z']],
+                                        names=['Node', 'Axis'])
+        correlation_df = pd.DataFrame(None, index=mi, columns=step, dtype=np.float64)
 
         for shift in step:
-            correlation_df.loc[:, shift] = position_df.loc[node_a].corrwith(
-                position_df.loc[node_b].shift(periods=shift, axis='columns'), axis=1, drop=False)
+            shifted_df = position_df.shift(periods=shift, axis='columns')
+            for (node_a, node_b) in node_pairs:
+                correlation_df.loc[["%s_%s" % (node_a, node_b)], shift] = position_df.loc[node_a].corrwith(
+                    shifted_df.loc[node_b], axis=1, drop=False, method='spearman').values
 
         #There is an issue with the fragmentation of the dataframe here as I shift the dataframe and create N empty frames. This might be resolved by reindexing instead of shifting
 
         self.correlation_df = correlation_df
 
-        super().__init__(correlation_df, adf.kp_in_df)
+        super().__init__(correlation_df, node_pairs)
 
-        self.ax.set_ylabel('Pearsons Correlation')
+        mid_x = (self.fig.subplotpars.right + self.fig.subplotpars.left) / 2
+        mid_y = (self.fig.subplotpars.top + self.fig.subplotpars.bottom) / 2
+        self.fig.supylabel('Pearsons Correlation', y=mid_y)
+        self.fig.supxlabel('Frame Offset', x=mid_x)
         plt.show()
-
-
-
-
-# Take one df, find correlation for time stem +N (n may be negative), find the median correlation for xyz separately per node
-
-# Then plot the xyz correlation against N
