@@ -4,8 +4,8 @@ import numpy as np
 np.set_printoptions(precision=3, suppress=True, threshold=150)
 import matplotlib.pyplot as plt
 import pandas as pd
-import scipy
-from src.animal import AnimalStruct, AnimalDataFrame
+from src.animal import AnimalStruct
+from scripts.tools.animal_dataframe import AnimalDataFrame
 import logging
 logger = logging.getLogger(__name__)
 
@@ -46,7 +46,7 @@ class CorrelationPlot(MagnitudePlot):
 
         frame_indices = np.unique(frame_indices)
 
-        adf = AnimalDataFrame(animal, frame_full, np.unique(node_pairs).tolist(), 1)
+        adf = AnimalDataFrame(animal, frame_full, np.unique(node_pairs).tolist())
         position_df = adf.position_xyz(clean=True)
         index_position_df = pd.DataFrame(None, columns=position_df.columns, index=position_df.index, dtype=np.float64)
         index_position_df.loc[:, frame_indices] = position_df.loc[:, frame_indices].values

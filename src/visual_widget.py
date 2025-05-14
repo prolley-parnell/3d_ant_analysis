@@ -19,8 +19,8 @@ class MultiViewer:
     """
 
     def __init__(self,
-                 animal_list: AnimalList,
-                 object_list: list[CollisionObj | CollisionObjTransform],
+                 animal_list: AnimalList | None,
+                 object_list: list[CollisionObj | CollisionObjTransform] | None,
                  frame_index,
                  auto_play: bool = True,
                  draw_legend: bool = True,
