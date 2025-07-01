@@ -5,6 +5,8 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "alive-progress>=3.2.0",
+    "filterpy>=1.4.5",
     "glooey>=0.3.6",
     "manifold3d>=3.0.1",
     "matplotlib>=3.10.0",

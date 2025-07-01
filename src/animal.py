@@ -47,6 +47,7 @@ class AnimalStruct:
         self._pose_dict = self._pose_csv_to_dict(self._pose_array, self._node_name_list)
         self._pose_ray_dict = {} # A dictionary containing the rays between parent nodes and children
         self._colour = trimesh.visual.random_color()
+        self._ray_names = {}
 
 
     @staticmethod
@@ -120,7 +121,7 @@ class AnimalStruct:
         # Find all links in skeleton and assign names
         for node in self._connectivity_dict:
             parent_name = self._connectivity_dict[node]['parent']
-            # if parent_name is not None and self._pose_dict[frame_idx][node]['score'] > 0.03: #TODO check that this threshold still applies
+
             if parent_name is not None:
 
                 # Assign the direction based on distance to core/anchor node
@@ -137,6 +138,9 @@ class AnimalStruct:
 
                     # Assign vector and origin to key name
                     name = parent_name + "_to_" + node
+                    if name not in self._ray_names:
+                        self._ray_names[name] = {'parent' : parent_name, 'child' : node}
+
                     ray_dict[name] = {}
 
                     ray_dict[name]['origin'] = origin
@@ -266,6 +270,10 @@ class AnimalStruct:
     def frames(self) -> list:
         return [*self._pose_dict.keys()]
 
+    @property
+    def ray_names(self) -> dict:
+        return self._ray_names
+
     def get_xyz_df(self, frame_idx: list = None, node_list: list = None):
         if frame_idx is None:
             frame_idx = self.frames
@@ -286,6 +294,33 @@ class AnimalStruct:
                     df.loc[name, frame] = np.nan
 
         return df, node_list
+
+    def update_from_df(self, dataframe_in: DataFrame):
+        def df_to_dict(dataframe: DataFrame):
+            pose_dict = {}
+            kp_in_df = dataframe.index.droplevel(level=1).unique()
+
+            for frame in dataframe:
+                temp_dict = {}
+                all_nan_flag = True
+                for name in kp_in_df:
+                    temp_dict[name] = {}
+                    temp_dict[name]['xyz'] = np.array(np.array(dataframe.loc[name, frame], dtype=np.float64))
+                    temp_dict[name]['score'] = 1
+
+                    if not np.any(np.isnan(temp_dict[name]['xyz'])):
+                        all_nan_flag = False
+                if not all_nan_flag:
+                    pose_dict[frame] = temp_dict
+            if pose_dict == {}:
+                raise ValueError("Pose csv does not contain any valid frames")
+
+            return pose_dict
+
+        new_pose_dict = df_to_dict(dataframe_in)
+        self._pose_dict = new_pose_dict
+        self._pose_ray_dict = {}
+
 
 
 class AnimalList:
