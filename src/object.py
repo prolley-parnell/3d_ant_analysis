@@ -74,31 +74,22 @@ class CollisionObj:
 
 
 class CollisionObjTransform:
-    def __init__(self, obj_folder: Path, toml_path: Path, reference_frame: int, units: str = "m"):
+    def __init__(self, obj_path: Path, toml_path: Path, units: str = "m"):
         """
         Initialise an object given by a folder of "obj" files into a dictionary of trimesh objects.
         Convert from dict of trimesh into a single mesh and a dict of transforms
-        :param obj_folder: Path to the folder containing the objects
+        :param obj_path: Path to the object file
+        :param toml_path: Path to the toml file with object transformations
         """
-        if obj_folder is not Path:
-            obj_folder = Path(obj_folder).resolve()
+        if obj_path is not Path:
+            obj_path = Path(obj_path).resolve()
 
-        self._obj_folder = obj_folder
         self._units = units
         self._colour = trimesh.visual.random_color()
         self._colour[3] = 140 #Change the colour alpha to make the object translucent
 
-        obj_path = sorted(self._obj_folder.glob(f"*{str(reference_frame)}.*"))
-        if len(obj_path) == 0:
-            logger.error(f"No paths matching {obj_folder} were found")
-            return
-        elif len(obj_path) > 1:
-            logger.error(f"Multiple paths matching {obj_folder} were found")
-            return
-        else:
-            obj_path = obj_path[0]
-
-        self._reference_frame, self._obj_mesh = single_obj_to_trimesh(obj_path, self._units, self._colour)
+        self._obj_path = obj_path
+        self._reference_frame, self._obj_mesh = single_obj_to_trimesh(self._obj_path, self._units, self._colour)
 
 
         if toml_path is not Path:

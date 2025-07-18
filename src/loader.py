@@ -21,6 +21,7 @@ class InstanceLoader:
                  track_folder: Optional[str | Path] = None,
                  session_number: Optional[int] = None,
                  track_number: Optional[list[int]] = None,
+                 prefix: Optional[str] = None,
                  ):
 
         self._animal_list = None
@@ -55,8 +56,28 @@ class InstanceLoader:
 
         if obj is None:
             if obj_folder is not None:
-                if obj_ref_frame is not None and obj_transform_toml is not None:
-                    self._obj = CollisionObjTransform(obj_folder, obj_transform_toml, obj_ref_frame)
+                if obj_folder is not Path:
+                    obj_folder = Path(obj_folder).resolve()
+
+                if obj_ref_frame is not None and session_number is not None:
+                    obj_path = sorted(obj_folder.glob(f"*{session_number}_frame{str(obj_ref_frame)}.dae"))
+                    if len(obj_path) == 0:
+                        logger.error(f"No paths matching {obj_folder} were found")
+                        return
+                    elif len(obj_path) > 1:
+                        logger.error(f"Multiple paths matching {obj_folder} were found")
+                        return
+                    else:
+                        obj_path = obj_path[0]
+
+                    if obj_transform_toml is None:
+                        if prefix is not None:
+                            obj_transform_toml = Path(obj_folder.parent) / f"segmentation/{prefix}_seed_session{session_number}.toml"
+                        else:
+                            logger.error(f"No transformation toml included")
+
+
+                    self._obj = CollisionObjTransform(obj_path, obj_transform_toml)
                 else:
                     self._obj = CollisionObj(obj_folder)
             else:
