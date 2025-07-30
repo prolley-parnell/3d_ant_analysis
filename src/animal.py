@@ -6,6 +6,7 @@ import concurrent.futures
 import trimesh.transformations as tf
 import trimesh.viewer
 from typing import Optional
+import pickle
 
 from scipy.sparse.csgraph import dijkstra
 
@@ -18,66 +19,53 @@ class AnimalStruct:
 
     def __init__(self,
                  toml_path: Path,
-                 pose_csv: Path,
-                 input_units: str = "mm",
-                 animal_name: str = None
+                 pose_dict: dict,
+                 animal_name: str,
+                 input_units: str = "mm"
                  ):
         """ Initialise a holder for the structure of the animal skeleton
         :param toml_path: Path to the toml file containing the structure of the animal skeleton
-        :param pose_csv: Path to the csv file containing the pose of the skeleton
+        :param pose_dict: Dictionary containing the pose of the animal skeleton extracted for mokap pkl file
         """
+        if toml_path is not Path:
+            toml_path = Path(toml_path).resolve()
+
         sk = SkeletonToml(toml_path)
         self._connectivity_list = sk.skeleton_connectivity
         self._node_name_list = sk.link_name_list
 
-        if pose_csv is not Path:
-            pose_csv = Path(pose_csv).resolve()
-
-        if animal_name is None:
-            #Structure is 240905-1616_session28_track13_points3d.csv
-            self.name = pose_csv.as_posix().split("/")[-1].split("_")[2]
-            self._prefix = pose_csv.as_posix().split("/")[-1].split("_")[0]
-            self._session = pose_csv.as_posix().split("/")[-1].split("_")[1]
-        else:
-            self.name = animal_name
+        self.name = animal_name
         self._connectivity_dict = {}
         self._units = input_units
         self._generate_connectivity_dict()
-        self._pose_array = np.genfromtxt(pose_csv, delimiter=',', names=True, filling_values=np.nan, dtype=np.float64)
-        self._pose_dict = self._pose_csv_to_dict(self._pose_array, self._node_name_list)
+
+        self._pose_dict = self._dict_to_pose(pose_dict, self._node_name_list)
         self._pose_ray_dict = {} # A dictionary containing the rays between parent nodes and children
         self._colour = trimesh.visual.random_color()
         self._ray_names = {}
 
 
     @staticmethod
-    def _pose_csv_to_dict(pose_array, link_names: list[str]) -> dict:
+    def _dict_to_pose(mokap_dict, link_names: list[str]) -> dict:
         """ Assumes the structure is _x,_y, _z, _score"""
 
         pose_dict = {}
-        for frame_i, row in enumerate(pose_array):
-            if row.dtype.names.__contains__('frame'):
-                frame_i = int(row['frame'])
-            else:
-                logging.debug("Frame column not included in the CSV")
-
+        for frame_i, row in enumerate(mokap_dict):
+            frame = row['frame_idx']
 
             temp_dict = {}
-            all_nan_flag = True
             for name in link_names:
-                temp_dict[name] = {}
-                temp_dict[name]['xyz'] = np.array(
-                    [row[name + "_x"], row[name + "_y"], row[name + "_z"]])
-                temp_dict[name]['score'] = row[name + "_score"]
 
-                if not np.any(np.isnan(temp_dict[name]['xyz'])):
-                    all_nan_flag = False
+                if name in row['keypoints'].keys():
+                    #Kept nested dict from previous iteration
+                    temp_dict[name] = {}
+                    temp_dict[name]['xyz'] = np.array(row['keypoints'][name])
 
-            if not all_nan_flag:
-                pose_dict[frame_i] = temp_dict
+                    if not np.any(np.isnan(temp_dict[name]['xyz'])):
+                        pose_dict[frame] = temp_dict
 
         if pose_dict == {}:
-            raise ValueError("Pose csv does not contain any valid frames")
+            raise ValueError("Pose dict does not contain any valid frames")
 
         return pose_dict
 
@@ -125,27 +113,29 @@ class AnimalStruct:
             if parent_name is not None:
 
                 # Assign the direction based on distance to core/anchor node
-                point_a = self._pose_dict[frame_idx][parent_name]['xyz']
-                point_b = self._pose_dict[frame_idx][node]['xyz']
+                if parent_name in self._pose_dict[frame_idx].keys() and node in self._pose_dict[frame_idx].keys():
+                    point_a = self._pose_dict[frame_idx][parent_name]['xyz']
+                    point_b = self._pose_dict[frame_idx][node]['xyz']
 
-                if any(np.isnan(point_a)) or any(np.isnan(point_b)):
-                    logging.info("Point is NaN")
-                else:
-                    # Generate the vector and origin based on this direction
-                    origin = point_a
-                    vector = point_b - point_a
-                    destination = point_b
 
-                    # Assign vector and origin to key name
-                    name = parent_name + "_to_" + node
-                    if name not in self._ray_names:
-                        self._ray_names[name] = {'parent' : parent_name, 'child' : node}
+                    if any(np.isnan(point_a)) or any(np.isnan(point_b)):
+                        logging.info("Point is NaN")
+                    else:
+                        # Generate the vector and origin based on this direction
+                        origin = point_a
+                        vector = point_b - point_a
+                        destination = point_b
 
-                    ray_dict[name] = {}
+                        # Assign vector and origin to key name
+                        name = parent_name + "_to_" + node
+                        if name not in self._ray_names:
+                            self._ray_names[name] = {'parent' : parent_name, 'child' : node}
 
-                    ray_dict[name]['origin'] = origin
-                    ray_dict[name]['vector'] = vector
-                    ray_dict[name]['dest'] = destination
+                        ray_dict[name] = {}
+
+                        ray_dict[name]['origin'] = origin
+                        ray_dict[name]['vector'] = vector
+                        ray_dict[name]['dest'] = destination
 
         return ray_dict
 
@@ -289,7 +279,10 @@ class AnimalStruct:
         for frame in frame_idx:
             for name in node_list:
                 if frame in self._pose_dict.keys():
-                    df.loc[name, frame] = self._pose_dict[frame][name]['xyz'].copy()
+                    if name in self._pose_dict[frame].keys():
+                        df.loc[name, frame] = self._pose_dict[frame][name]['xyz'].copy()
+                    else:
+                        df.loc[name, frame] = np.nan
                 else:
                     df.loc[name, frame] = np.nan
 
@@ -322,13 +315,11 @@ class AnimalStruct:
         self._pose_ray_dict = {}
 
 
-
 class AnimalList:
     def __init__(self,
         animals: Optional[list[AnimalStruct]] = None,
         toml_path: Optional[Path | str] = None,
-        csv_folder: Optional[Path | str] = None,
-        session_number: Optional[int] = None,
+        pose_pkl: Optional[Path | str] = None,
         track_number: Optional[list] = None,
         input_units: Optional[str] = "mm"
         ):
@@ -337,24 +328,33 @@ class AnimalList:
             self._units = input_units
             self._toml_path = toml_path
 
-            if csv_folder is not Path:
-                csv_folder = Path(csv_folder).resolve()
+            if pose_pkl is not Path:
+                pose_pkl = Path(pose_pkl).resolve()
 
-            #240905-1616_session28_track13_points3d.csv
+
+            tracking_dict = pickle.load(open(pose_pkl, 'rb'))
+
             if track_number is None:
-                csv_path_list = sorted(csv_folder.glob(f"*_session{str(session_number)}_track*_points3d.csv"))
+                track_list = sorted(tracking_dict.keys())
             else:
-                csv_path_list = []
-                for track_id in track_number:
-                    csv_path_list.append(sorted(csv_folder.glob(f"*_session{str(session_number)}_track{str(track_id)}_points3d.csv")))
+                track_list = track_number
+
+            subset_tracking_dict = {t: tracking_dict[t] for t in track_list}
 
             self._animals = []
-            self._read_tracking_folder_mt(csv_path_list)
+            self._read_pose_pkl(subset_tracking_dict)
         else:
             self._animals = animals
 
         self._animal_name_list = [animal.name for animal in self._animals]
 
+
+    def _read_pose_pkl(self, pose_dict):
+
+        for animal_track_idx, row in pose_dict.items():
+            animal_name = str(animal_track_idx)
+            animal = AnimalStruct(self._toml_path, row, animal_name, self._units)
+            self._animals.append(animal)
 
     def _read_tracking_folder_mt(self, tracking_dir_list: list):
         """ Given a path to a folder containing ".obj" or ".dae" files with the name of the corresponding frame, load these and
