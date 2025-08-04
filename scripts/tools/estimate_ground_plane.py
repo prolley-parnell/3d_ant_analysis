@@ -35,13 +35,13 @@ class GroundPlaneEstimation:
 
         #Method 2: PyRANSAC
         plane = pyrsc.Plane()
-        best_eq, best_inliers = plane.fit(all_points, thresh=0.05, minPoints=np.floor(len(all_points_list)*0.7), maxIteration=10000)
+        best_eq, best_inliers = plane.fit(all_points, thresh=0.25, minPoints=np.floor(len(all_points_list)*0.7), maxIteration=10000)
 
-        centre = np.mean(all_points[best_inliers], axis=0) + (np.asarray(best_eq[:3])*0.5) #scalar to see how offset from the plane to set the centre
+        centre = np.mean(all_points[best_inliers], axis=0) #+ (np.asarray(best_eq[:3])*0.5) #scalar to see how offset from the plane to set the centre
         tform = trimesh.geometry.align_vectors([0, 0, 1], np.asarray(best_eq[:3]))
         tform[:3,3] = centre
         self._pcl = o3d.geometry.PointCloud(o3d.utility.Vector3dVector(all_points))
-        self._extent = [10, 10, 0.1]
+        self._extent = [50, 50, 0.15]
 
         self._tform = tform
 

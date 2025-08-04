@@ -136,6 +136,7 @@ class AnimalStruct:
                         ray_dict[name]['origin'] = origin
                         ray_dict[name]['vector'] = vector
                         ray_dict[name]['dest'] = destination
+                        ray_dict[name]['link_length'] = np.sqrt(np.square(vector).sum(axis=0))
 
         return ray_dict
 
@@ -339,7 +340,7 @@ class AnimalList:
             else:
                 track_list = track_number
 
-            subset_tracking_dict = {t: tracking_dict[t] for t in track_list}
+            subset_tracking_dict = {t: tracking_dict[int(t)] for t in track_list}
 
             self._animals = []
             self._read_pose_pkl(subset_tracking_dict)

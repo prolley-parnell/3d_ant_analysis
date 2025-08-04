@@ -21,7 +21,8 @@ class CollisionDetector:
     def __init__(self, instance: Optional[InstanceLoader] = None,
                  animal_list: Optional[AnimalList] = None,
                  obj_list: Optional[list[CollisionObj | CollisionObjTransform | trimesh.Trimesh]] = None,
-                 node_of_interest: Optional[list[str]] = None):
+                 node_of_interest: Optional[list[str]] = None,
+                 frame_range: Optional[tuple[int, int]] = None):
         """
         :param instance: A class already containing the obj list and the animal list, this takes precedence over the animal list and obj_list if provided.
         :param animal_list: A class containing the animal list
@@ -45,8 +46,15 @@ class CollisionDetector:
         else:
             instance_list = [*self._animal_list.animals]
 
-        min_frame = min([inst.get_frame_range()[0] for inst in instance_list])
-        max_frame = max([inst.get_frame_range()[1] for inst in instance_list])
+        min_frame_inst = min([inst.get_frame_range()[0] for inst in instance_list])
+        max_frame_inst = max([inst.get_frame_range()[1] for inst in instance_list])
+
+        if frame_range is None:
+            min_frame = min_frame_inst
+            max_frame = max_frame_inst
+        else:
+            min_frame = max(min_frame_inst, frame_range[0])
+            max_frame = min(max_frame_inst, frame_range[1])
 
         self._all_frames = range(min_frame, max_frame)
 
@@ -140,17 +148,30 @@ class CollisionDetector:
 
                     if len(index_ray) > 0:
 
-                        animal_collision = np.empty(len(index_ray), dtype=self._dt)
-                        animal_collision['Frame'] = frame_idx
-                        animal_collision['Track'] = animal.name
-                        animal_collision['ID'] = np.array([*range(len(index_ray))])
-                        animal_collision['Limb'] = [link_list[ray] for ray in index_ray]
-                        animal_collision['Norm'] = geom.face_normals[index_tri].squeeze().astype(np.float64)
-                        animal_collision['Point'] = location.astype(np.float64)
+                        #Find the length of the link
+                        link_names_collision = [link_list[ray] for ray in index_ray]
 
-                        # collision_array = np.concatenate((collision_array, animal_collision), axis=0)
-                        _collision_array[n_collisions: n_collisions + len(index_ray)] = animal_collision
-                        n_collisions += len(index_ray)
+                        #Find distance from intersection to origin
+                        collision_ray = location - [pose_ray_dict[link]['origin'] for link in link_names_collision]
+                        length_of_collision_ray = np.sqrt(np.square(collision_ray).sum(axis=1))
+
+                        #Find distance of vector to origin
+                        link_length = [pose_ray_dict[link]['link_length'] for link in link_names_collision]
+
+                        true_collision_idx = np.flatnonzero(link_length >= length_of_collision_ray)
+
+                        if len(true_collision_idx) > 0:
+
+                            animal_collision = np.empty(len(true_collision_idx), dtype=self._dt)
+                            animal_collision['Frame'] = frame_idx
+                            animal_collision['Track'] = animal.name
+                            animal_collision['ID'] = np.array([*range(len(true_collision_idx))])
+                            animal_collision['Limb'] = [link_list[ray] for ray in index_ray[true_collision_idx]]
+                            animal_collision['Norm'] = geom.face_normals[index_tri[true_collision_idx]].squeeze().astype(np.float64)
+                            animal_collision['Point'] = location[true_collision_idx].astype(np.float64)
+
+                            _collision_array[n_collisions: n_collisions + len(true_collision_idx)] = animal_collision
+                            n_collisions += len(true_collision_idx)
         if n_collisions > 0:
             return _collision_array[np.argwhere(_collision_array)].flatten()
         else:

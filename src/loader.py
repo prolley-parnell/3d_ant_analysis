@@ -19,7 +19,7 @@ class InstanceLoader:
                  skeleton_toml_path: Optional[str | Path] = None,
                  animal_pkl: Optional[str | Path] = None,
                  session_number: Optional[int] = None,
-                 track_number: Optional[list[int]] = None,
+                 track_number: Optional[list[int] | list[str]] = None,
                  prefix: Optional[str] = None,
                  ):
 
