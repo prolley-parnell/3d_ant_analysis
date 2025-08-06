@@ -41,7 +41,7 @@ class CollisionDetector:
                 self._animal_list = animal_list
                 self._obj_list = obj_list
 
-        if not [type(*self._obj_list)].__contains__(trimesh.Trimesh):
+        if not [type(obj) for obj in self._obj_list].__contains__(trimesh.Trimesh):
             instance_list = [*self._animal_list.animals, *self._obj_list]
         else:
             instance_list = [*self._animal_list.animals]
@@ -58,11 +58,14 @@ class CollisionDetector:
 
         self._all_frames = range(min_frame, max_frame)
 
-        self._node_of_interest = node_of_interest
+        if node_of_interest is None:
+            self._node_of_interest = self._animal_list.animal_node_list
+        else:
+            self._node_of_interest = node_of_interest
 
 
         self._dt = np.dtype([('Frame', np.int32), ('Track', np.str_, 50), ('ID', np.uint8), ('Limb', np.str_, 50), ('Norm', np.float64, 3),
-                             ('Point', np.float64, 3)])
+                             ('Point', np.float64, 3), ('Barycentric', np.float64, 3), ('Object', np.uint8), ('Face', np.uint8)])
 
         collision_list = self._calculate_collision_st()
         df = DataFrame(collision_list.flatten().tolist(), columns=self._dt.names)
@@ -92,6 +95,9 @@ class CollisionDetector:
 
         return ray_visualise, animal_name
 
+    def get_tracks_in_collision(self) -> list[str]:
+        return [*self._collision_df.index.unique(1)]
+
     def get_track(self, track_name: str) -> DataFrame:
         """ Return the collision Dataframe for only 1 animal
          Example usage:
@@ -110,6 +116,39 @@ class CollisionDetector:
          """
         return self._collision_df.loc[self._collision_df["Limb"].isin(link_name_list)]
 
+    def get_all_collision_rays(self, frame_idx: int, obj_id: int = 0) -> (np.ndarray, np.ndarray):
+        """ Return the collision rays as if on a static object """
+
+        obj = self._obj_list[obj_id]
+
+        if type(obj) is trimesh.Trimesh:
+            geom = obj
+        else:
+            # Check that the object is in the frame
+            if obj.check_frame_exist(frame_idx):
+                geom = obj.generate_scene(frame_idx).to_mesh()
+            else:
+                raise Exception(f"CollisionDetector: Object {obj_id} for frame {frame_idx} does not exist")
+
+
+        if len(self._collision_df) == 0:  # There are no collisions
+            logger.info("No collisions found for this shape")
+            return None
+        else:
+            ray_array = np.empty((len(self._collision_df), 2, 3), dtype=np.float64)
+            animal_name = []
+            for i, contact in enumerate(self._collision_df.itertuples()):
+                animal_name.append(contact.Index)
+                point_b = contact.Barycentric.astype(np.float64).reshape(-1, 3) #TODO: could add an object ID check here
+                #3rd value of barycentric coordinates is b_2 = 1 - b_0 - b_1
+                triangles = geom.vertices[geom.faces[contact.Face]].base
+                point_c = trimesh.triangles.barycentric_to_points(triangles, point_b[0:2]).squeeze()
+                norm = geom.face_normals[contact.Face].squeeze().astype(np.float64)
+                ray_array[i, :] = [point_c, point_c + norm]
+            ray_visualise = trimesh.load_path(ray_array)
+
+        return ray_visualise, animal_name
+
 
     def _calculate_collisions(self, frame_idx: int):
         '''
@@ -120,7 +159,7 @@ class CollisionDetector:
         animals_in_frame = self._animal_list.where_frame_exist(frame_idx)
         _collision_array = np.empty(100, dtype=self._dt)
         n_collisions = 0
-        for obj in self._obj_list: #TODO: currently only one object at a time
+        for obj_i, obj in enumerate(self._obj_list):
             if type(obj) is trimesh.Trimesh:
                 geom = obj
             else:
@@ -169,6 +208,10 @@ class CollisionDetector:
                             animal_collision['Limb'] = [link_list[ray] for ray in index_ray[true_collision_idx]]
                             animal_collision['Norm'] = geom.face_normals[index_tri[true_collision_idx]].squeeze().astype(np.float64)
                             animal_collision['Point'] = location[true_collision_idx].astype(np.float64)
+                            face_vertices = geom.vertices[geom.faces[index_tri[true_collision_idx]]]
+                            animal_collision['Barycentric'] = trimesh.triangles.points_to_barycentric(face_vertices, location[true_collision_idx]).squeeze().astype(np.float64)
+                            animal_collision['Object'] = obj_i
+                            animal_collision['Face'] = index_tri[true_collision_idx]
 
                             _collision_array[n_collisions: n_collisions + len(true_collision_idx)] = animal_collision
                             n_collisions += len(true_collision_idx)

@@ -27,13 +27,15 @@ class MultiViewer:
                  collision: Optional[CollisionDetector] = None,
                  axis: Optional[np.ndarray] = None,
                  fps: Optional[float] = 30.0,
-                 hold_window: Optional[int] = 20):
+                 hold_window: Optional[int] = 20,
+                 view_all_collisions: bool = False,):
 
         # create window with padding
         self.width, self.height = 960, 720
         window = self._create_window(width=self.width, height=self.height)
 
         self._hold_window = hold_window
+        self._view_all_collisions = view_all_collisions
 
         gui = glooey.Gui(window)
 
@@ -60,7 +62,7 @@ class MultiViewer:
 
         scene = self._update_animal(scene, self._animal_list, self._frame_index)
         scene = self._update_obj(scene, self._object_list, self._frame_index)
-        scene = self._update_collision(scene, self._collision_detector, self._frame_index, self._hold_window)
+        scene = self._update_collision(scene, self._collision_detector, self._frame_index, self._hold_window, self._view_all_collisions)
 
         self._scene_widget = trimesh.viewer.SceneWidget(scene)
         hbox.add(self._scene_widget)
@@ -131,7 +133,7 @@ class MultiViewer:
         return scene
 
     @staticmethod
-    def _update_collision(scene: trimesh.Scene, collision_detector: Optional[CollisionDetector] , frame_idx: int, hold_window: int):
+    def _update_collision(scene: trimesh.Scene, collision_detector: Optional[CollisionDetector] , frame_idx: int, hold_window: int, view_all_collisions: bool = False):
 
         if collision_detector is not None:
             collision_ray_list = [k for k in scene.geometry.keys() if "_collision-ray" in k]
@@ -142,7 +144,10 @@ class MultiViewer:
             # Only deletes geometry for updated animals
             scene.delete_geometry(collision_ray_delete)
 
-            frame_collision = collision_detector.visualise_collision_rays(frame_idx)
+            if view_all_collisions:
+                frame_collision = collision_detector.get_all_collision_rays(frame_idx)
+            else:
+                frame_collision = collision_detector.visualise_collision_rays(frame_idx)
             # Check if the frame is present in the dict of object frames
             if frame_collision is not None:
                 ray, animal = frame_collision
@@ -182,7 +187,7 @@ class MultiViewer:
         self._scene_widget.do_undraw()
         self._scene_widget.scene = self._update_obj(self._scene_widget.scene, self._object_list, self._frame_index)
         self._scene_widget.scene = self._update_animal(self._scene_widget.scene, self._animal_list, self._frame_index)
-        self._scene_widget.scene = self._update_collision(self._scene_widget.scene, self._collision_detector, self._frame_index, self._hold_window)
+        self._scene_widget.scene = self._update_collision(self._scene_widget.scene, self._collision_detector, self._frame_index, self._hold_window, self._view_all_collisions)
 
         self._legend = self._update_legend(self._animal_list, self._frame_index)
 

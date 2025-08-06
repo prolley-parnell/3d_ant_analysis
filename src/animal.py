@@ -1,4 +1,6 @@
 import logging
+from enum import unique
+
 import numpy as np
 import trimesh
 from pathlib import Path
@@ -265,6 +267,10 @@ class AnimalStruct:
     def ray_names(self) -> dict:
         return self._ray_names
 
+    @property
+    def node_names(self) -> list:
+        return self._node_name_list
+
     def get_xyz_df(self, frame_idx: list = None, node_list: list = None):
         if frame_idx is None:
             frame_idx = self.frames
@@ -386,6 +392,17 @@ class AnimalList:
     @property
     def animal_name_list(self):
         return self._animal_name_list
+
+    @property
+    def animal_node_list(self):
+        """ Return a list of nodes present in the skeleton of any animal in the list """
+        node_list = []
+        for animal in self._animals:
+            if animal.node_names in node_list:
+                continue
+            else:
+                node_list.append(animal.node_names)
+        return node_list[0] #I am aware this is a very hacky and non-generalising approach TODO: Make this do what it actually says it does
 
     def animal_colour(self, animal_name: Optional[str] = None) -> [np.ndarray]:
         if animal_name is None:

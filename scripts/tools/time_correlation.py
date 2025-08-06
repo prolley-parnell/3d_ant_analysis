@@ -48,6 +48,9 @@ class CorrelationPlot(MagnitudePlot):
 
         adf = AnimalDataFrame(animal, frame_full, np.unique(node_pairs).tolist())
         position_df = adf.position_xyz(clean=True)
+
+        #TODO Replace Position DF Nodes
+
         index_position_df = pd.DataFrame(None, columns=position_df.columns, index=position_df.index, dtype=np.float64)
         index_position_df.loc[:, frame_indices] = position_df.loc[:, frame_indices].values
         step = range(*min_max)
@@ -72,3 +75,4 @@ class CorrelationPlot(MagnitudePlot):
         self.fig.supylabel('Pearsons Correlation', y=mid_y)
         self.fig.supxlabel('Frame Offset', x=mid_x)
         plt.show()
+
