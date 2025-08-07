@@ -20,7 +20,8 @@ class XYZPlot:
         self.fig, (self.ax_x, self.ax_y, self.ax_z) = plt.subplots(3,1,figsize=(9, 9), sharex=True)
 
         for kp in kp_list:
-            kp_df = data_frame.T[kp].dropna()
+            #kp_df = data_frame.T[kp].dropna()
+            kp_df = data_frame.T[kp]
             self.ax_x.plot('x', data=kp_df, label=kp)
             self.ax_y.plot('y', data=kp_df, label=kp)
             self.ax_z.plot('z', data=kp_df, label=kp)
@@ -46,7 +47,8 @@ class MagnitudePlot:
         self.fig, self.ax = plt.subplots(1,1,figsize=(9, 3), sharex=True)
 
         for kp in kp_list:
-            self.ax.plot(kp, data=data_frame.T.dropna(), label=kp)
+            self.ax.plot(kp, data=data_frame.T, label=kp)
+            # self.ax.plot(kp, data=data_frame.T.dropna(), label=kp)
         self.ax.legend()
         self.ax.set_xlabel('Frame')
 

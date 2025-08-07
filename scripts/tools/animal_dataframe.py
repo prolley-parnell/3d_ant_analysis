@@ -18,7 +18,8 @@ class AnimalDataFrame:
                  animal: AnimalStruct,
                  frames: list[int] = None,
                  node_list: list[str] = None,
-                 calculate_inlier: bool = True):
+                 calculate_inlier: bool = True,
+                 signed: bool = True):
         """
         :param animal: The AnimalStruct object to use
         :param frames: A sequential frame window to query
@@ -34,6 +35,7 @@ class AnimalDataFrame:
         self._animal = animal
         self._frames = frames
         self._node_list = node_list
+        self._signed = signed
 
 
 
@@ -98,7 +100,7 @@ class AnimalDataFrame:
             modified_z_scores = (series - median_y) / median_absolute_deviation_y
             return modified_z_scores
 
-        acc_mag_df = self._xyz_to_mag_df(self._acceleration_df, self._kp_in_df)
+        acc_mag_df = self.acceleration_mag(clean=False) #Now has the option to get a signed plot
         acc_zsc_mag = acc_mag_df.apply(modified_z_score, axis='columns', result_type='broadcast')
         acc_zsc_xyz = self._acceleration_df.apply(modified_z_score, axis='columns', result_type='broadcast')
 
@@ -252,8 +254,35 @@ class AnimalDataFrame:
         else:
             return self._acceleration_df
 
+    def acceleration_mag_from_velocity(self, clean:bool = False) -> DataFrame:
+        velocity_df = self.velocity_mag(clean=clean)
+        keys = velocity_df.keys()
+        node_list = velocity_df.index.values
+        acceleration_df = DataFrame(dtype=np.float64, index=node_list, columns=keys)
+        #Set the initial vel
+        for key in keys:
+            for kp in node_list:
+
+                if velocity_df.keys().__contains__(key - 1):
+                    u = velocity_df.loc[kp, key - 1]
+                    dt = 1
+                else:
+                    u = np.nan
+                    dt = np.nan
+
+                v = velocity_df.loc[kp, key]
+
+                a = np.asarray((v - u) / dt, dtype=np.float64)
+
+                acceleration_df.loc[kp, key] = a
+
+        return acceleration_df
+
     def acceleration_mag(self, clean:bool = False) -> DataFrame:
-        return self._xyz_to_mag_df(self.acceleration_xyz(clean), self._kp_in_df)
+        if self._signed:
+            return self.acceleration_mag_from_velocity(clean=clean)
+        else:
+            return self._xyz_to_mag_df(self.acceleration_xyz(clean), self._kp_in_df)
 
     def velocity_xyz(self, clean: bool = False):
         if clean:

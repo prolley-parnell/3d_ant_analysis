@@ -64,13 +64,14 @@ class CollisionDetector:
             self._node_of_interest = node_of_interest
 
 
-        self._dt = np.dtype([('Frame', np.int32), ('Track', np.str_, 50), ('ID', np.uint8), ('Limb', np.str_, 50), ('Norm', np.float64, 3),
-                             ('Point', np.float64, 3), ('Barycentric', np.float64, 3), ('Object', np.uint8), ('Face', np.uint8)])
+        self._dt = np.dtype([('Frame', np.int32), ('Track', np.str_, 50), ('ID', np.int8), ('Limb', np.str_, 50), ('Norm', np.float64, 3),
+                             ('Point', np.float64, 3), ('Barycentric', np.float64, 3), ('Object', np.int32), ('Face', np.int32)])
 
         collision_list = self._calculate_collision_st()
         df = DataFrame(collision_list.flatten().tolist(), columns=self._dt.names)
         df.set_index(["Frame", "Track"], inplace=True)
         self._collision_df = df
+        self.n_collision = len(self._collision_df)
 
 
     def visualise_collision_rays(self, frame_idx: int) -> (np.ndarray, np.ndarray):
