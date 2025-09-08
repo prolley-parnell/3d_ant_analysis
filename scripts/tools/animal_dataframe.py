@@ -100,21 +100,22 @@ class AnimalDataFrame:
             modified_z_scores = (series - median_y) / median_absolute_deviation_y
             return modified_z_scores
 
-        acc_mag_df = self.acceleration_mag(clean=False) #Now has the option to get a signed plot
-        acc_zsc_mag = acc_mag_df.apply(modified_z_score, axis='columns', result_type='broadcast')
-        acc_zsc_xyz = self._acceleration_df.apply(modified_z_score, axis='columns', result_type='broadcast')
+        # acc_mag_df = self.acceleration_mag(clean=False) #Now has the option to get a signed plot
+        # acc_zsc_mag = acc_mag_df.apply(modified_z_score, axis='columns', result_type='broadcast')
+        # acc_zsc_xyz = self._acceleration_df.apply(modified_z_score, axis='columns', result_type='broadcast')
 
         disp_mag_df = self._xyz_to_mag_df(self._displace_df, self._kp_in_df)
         disp_zsc_mag = disp_mag_df.apply(modified_z_score, axis='columns', result_type='broadcast')
         disp_zsc_xyz = self._displace_df.apply(modified_z_score, axis='columns', result_type='broadcast')
 
-        acc_mag_inlier_mask = acc_zsc_mag[np.abs(acc_zsc_mag) > 2.5].groupby(level=0).count() == 0
-        acc_xyz_inlier_mask = acc_zsc_xyz[np.abs(acc_zsc_xyz) > 2.5].groupby(level=0).count() == 0
-        disp_mag_inlier_mask = disp_zsc_mag[np.abs(disp_zsc_mag) > 2.5].groupby(level=0).count() == 0
-        disp_xyz_inlier_mask = disp_zsc_xyz[np.abs(disp_zsc_xyz) > 2.5].groupby(level=0).count() == 0
+        # acc_mag_inlier_mask = acc_zsc_mag[np.abs(acc_zsc_mag) > 2.5].groupby(level=0).count() == 0
+        # acc_xyz_inlier_mask = acc_zsc_xyz[np.abs(acc_zsc_xyz) > 2.5].groupby(level=0).count() == 0
+        disp_mag_inlier_mask = disp_zsc_mag[np.abs(disp_zsc_mag) > 3].groupby(level=0).count() == 0
+        disp_xyz_inlier_mask = disp_zsc_xyz[np.abs(disp_zsc_xyz) > 3].groupby(level=0).count() == 0
 
         inlier_mask = DataFrame(dtype=bool, index=self._acceleration_df.index, columns=self._acceleration_df.columns)
-        combined_mask = acc_mag_inlier_mask & acc_xyz_inlier_mask & disp_mag_inlier_mask & disp_xyz_inlier_mask
+        combined_mask = disp_mag_inlier_mask & disp_xyz_inlier_mask
+        # combined_mask = acc_mag_inlier_mask & acc_xyz_inlier_mask & disp_mag_inlier_mask & disp_xyz_inlier_mask
         for idx in self._acceleration_df.index.values:
             inlier_mask.loc[idx, combined_mask.columns.values] = combined_mask.loc[idx[0]]
 

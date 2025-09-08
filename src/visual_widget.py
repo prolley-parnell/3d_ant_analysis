@@ -46,11 +46,16 @@ class MultiViewer:
         self._object_list = object_list
         self._animal_list = animal_list
 
-        min_frame = min([inst.get_frame_range()[0] for inst in [*self._animal_list.animals, *self._object_list]])
-        max_frame = max([inst.get_frame_range()[1] for inst in [*self._animal_list.animals, *self._object_list]])
+        if auto_play:
+            min_frame = min([inst.get_frame_range()[0] for inst in [*self._animal_list.animals, *self._object_list]])
+            max_frame = max([inst.get_frame_range()[1] for inst in [*self._animal_list.animals, *self._object_list]])
 
-        self._frame_range = (min_frame, max_frame)
-        self._frame_index = max(frame_index, self._frame_range[0])
+            self._frame_range = (min_frame, max_frame)
+            self._frame_index = max(frame_index, self._frame_range[0])
+
+        else:
+            self._frame_range = (frame_index, frame_index)
+            self._frame_index = frame_index
 
         #Generate a scene with the combined geometries
         scene = trimesh.Scene()
@@ -88,7 +93,7 @@ class MultiViewer:
         pyglet.app.run()
 
     @staticmethod
-    def _update_obj(scene: trimesh.Scene, obj_list: list[CollisionObj | CollisionObjTransform], frame_idx: int):
+    def _update_obj(scene: trimesh.Scene, obj_list: list[CollisionObj | CollisionObjTransform ], frame_idx: int):
 
         for obj_id, obj in enumerate(obj_list):
             # Check if the frame is present in the dict of object frames

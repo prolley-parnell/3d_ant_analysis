@@ -41,7 +41,7 @@ class GroundPlaneEstimation:
         tform = trimesh.geometry.align_vectors([0, 0, 1], np.asarray(best_eq[:3]))
         tform[:3,3] = centre
         self._pcl = o3d.geometry.PointCloud(o3d.utility.Vector3dVector(all_points))
-        self._extent = [50, 50, 0.15]
+        self._extent = [10, 10, 0.15]
 
         self._tform = tform
 
