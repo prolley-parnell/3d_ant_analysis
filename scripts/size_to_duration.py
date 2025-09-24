@@ -45,12 +45,19 @@ for session in session_list:
     median_inter_eye = scale_from_position(position_df)
 
     #Get interaction duration
-    interaction_duration = gt["grasp"] - gt["touch"]
+    interaction_duration = np.float64(gt["grasp"] - gt["touch"])*0.01
 
     data_out[session] = [median_inter_eye, interaction_duration]
 
 data_out_df = DataFrame(data_out, index=['x', 'y'])
 
 plt.scatter(data_out_df.loc['x'], data_out_df.loc['y'])
-
+plt.xlabel("Median Inter Eye Distance in millimeters")
+plt.ylabel("Duration in seconds")
+plt.xticks(ticks=np.arange(0.9, 2, 0.1))
+plt.yticks(ticks=np.arange(0, 35, 5))
+plt.title("Ant Size against time to grasp")
+plt.minorticks_on()
+plt.grid(visible=True, which='major', linestyle='-', linewidth=0.5)
+plt.grid(visible=True, which='minor', linestyle='-', linewidth=0.1)
 plt.show()

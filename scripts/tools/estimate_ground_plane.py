@@ -10,7 +10,8 @@ import pyransac3d as pyrsc
 class GroundPlaneEstimation:
     def __init__(self,
                  animal_list: AnimalList,
-                 node_list=None):
+                 node_list=None,
+                 use_precalc=True):
 
         if node_list is None:
             node_list = ['leg_m_L2', 'leg_m_R2']
@@ -33,17 +34,22 @@ class GroundPlaneEstimation:
         # tform[:3, :3] = self._bb.R
         # tform[:3, 3] = self._bb.center
 
-        #Method 2: PyRANSAC
-        plane = pyrsc.Plane()
-        best_eq, best_inliers = plane.fit(all_points, thresh=0.25, minPoints=np.floor(len(all_points_list)*0.7), maxIteration=10000)
-
-        centre = np.mean(all_points[best_inliers], axis=0) #+ (np.asarray(best_eq[:3])*0.5) #scalar to see how offset from the plane to set the centre
-        tform = trimesh.geometry.align_vectors([0, 0, 1], np.asarray(best_eq[:3]))
-        tform[:3,3] = centre
         self._pcl = o3d.geometry.PointCloud(o3d.utility.Vector3dVector(all_points))
-        self._extent = [10, 10, 0.15]
+        self._extent = [10, 10, 0.001]
 
-        self._tform = tform
+        if use_precalc:
+            self._tform = ground_plane_tform()
+        else:
+
+            #Method 2: PyRANSAC
+            plane = pyrsc.Plane()
+            best_eq, best_inliers = plane.fit(all_points, thresh=0.25, minPoints=np.floor(len(all_points_list)*0.7), maxIteration=10000)
+
+            centre = np.mean(all_points[best_inliers], axis=0) + (np.asarray(best_eq[:3])*0.095) #scalar to see how offset from the plane to set the centre
+            tform = trimesh.geometry.align_vectors([0, 0, 1], np.asarray(best_eq[:3]))
+            tform[:3,3] = centre
+
+            self._tform = tform
 
     def visualise_bounding_box(self):
         center_frame = o3d.geometry.TriangleMesh.create_coordinate_frame(
@@ -62,4 +68,12 @@ class GroundPlaneEstimation:
         return box
 
 
-
+def ground_plane_tform():
+    """
+    Returns a pre-calculated tform using a subset of calculations
+    :return: np.ndarray
+    """
+    return np.array( [[-9.98784804e-01,  4.10572101e-02, -2.72620643e-02,  4.77451620e-01],
+                     [ 3.99190421e-02,  9.98359041e-01,  4.10572101e-02, -1.19375286e+00],
+                     [ 2.89030229e-02,  3.99190421e-02, -9.98784804e-01,  1.94897893e+02],
+                     [ 0.00000000e+00,  0.00000000e+00,  0.00000000e+00,  1.00000000e+00]])

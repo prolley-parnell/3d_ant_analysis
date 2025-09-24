@@ -332,8 +332,8 @@ class AnimalList:
         ):
         """ Generate a list of AnimalStruct objects from a folder structure"""
         if animals is None:
-            self._units = input_units
-            self._toml_path = toml_path
+            _units = input_units
+            _toml_path = toml_path
 
             if pose_pkl is not Path:
                 pose_pkl = Path(pose_pkl).resolve()
@@ -349,35 +349,35 @@ class AnimalList:
             subset_tracking_dict = {t: tracking_dict[int(t)] for t in track_list}
 
             self._animals = []
-            self._read_pose_pkl(subset_tracking_dict)
+            self._read_pose_pkl(subset_tracking_dict, _units, _toml_path)
         else:
             self._animals = animals
 
         self._animal_name_list = [animal.name for animal in self._animals]
 
 
-    def _read_pose_pkl(self, pose_dict):
+    def _read_pose_pkl(self, pose_dict: dict, units: str, toml_path: Path):
 
         for animal_track_idx, row in pose_dict.items():
             animal_name = str(animal_track_idx)
-            animal = AnimalStruct(self._toml_path, row, animal_name, self._units)
+            animal = AnimalStruct(toml_path, row, animal_name, units)
             self._animals.append(animal)
 
-    def _read_tracking_folder_mt(self, tracking_dir_list: list):
-        """ Given a path to a folder containing ".obj" or ".dae" files with the name of the corresponding frame, load these and
-        convert to a dict of trimesh"""
-
-        with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
-            future_to_path = {executor.submit(AnimalStruct, self._toml_path, track_path, self._units): track_path for track_path in tracking_dir_list}
-            for future in concurrent.futures.as_completed(future_to_path):
-                path_input = future_to_path[future]
-                try:
-                    animal = future.result()
-                except Exception as exc:
-                    logger.error('%r generated an exception: %s' % (path_input, exc))
-                else:
-                    logger.info('Animal name is %s ' % animal.name)
-                    self._animals.append(animal)
+    # def _read_tracking_folder_mt(self, tracking_dir_list: list):
+    #     """ Given a path to a folder containing ".obj" or ".dae" files with the name of the corresponding frame, load these and
+    #     convert to a dict of trimesh"""
+    #
+    #     with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+    #         future_to_path = {executor.submit(AnimalStruct, self._toml_path, track_path, self._units): track_path for track_path in tracking_dir_list}
+    #         for future in concurrent.futures.as_completed(future_to_path):
+    #             path_input = future_to_path[future]
+    #             try:
+    #                 animal = future.result()
+    #             except Exception as exc:
+    #                 logger.error('%r generated an exception: %s' % (path_input, exc))
+    #             else:
+    #                 logger.info('Animal name is %s ' % animal.name)
+    #                 self._animals.append(animal)
 
     @property
     def animals(self) -> list[AnimalStruct]:
