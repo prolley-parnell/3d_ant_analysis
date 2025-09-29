@@ -68,7 +68,7 @@ for experiment_i, session in enumerate(session_list):
         animal = animallist_session.animal(track)
         adf = AnimalDataFrame(animal, None, node_of_interest, signed=True)
         # acceleration_df = adf.position_xyz(clean=True).xs('z', level="Axis")
-        acceleration_df = adf.acceleration_mag(clean=True)
+        acceleration_df = adf.acceleration_mag(clean=False)
 
 
         #Find the accelerations of the node in the limb
@@ -100,4 +100,5 @@ plt.title("Acceleration of antennal tip N frames from ground contact")
 plt.xlabel("N Frames")
 plt.ylabel("Acceleration (mm/s^2)")
 ax.minorticks_on()
+plt.savefig("/Users/persie/Library/CloudStorage/OneDrive-UniversityofEdinburgh/PhD/Figures/Thesis Figures/Experiment Analysis/collision_ground_accel.svg")
 plt.show()
