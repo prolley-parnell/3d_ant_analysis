@@ -18,8 +18,9 @@ def scale_from_position(input_position: DataFrame):
 
     return magnitude_inter_eye.median()
 
-data_folder = Path("/Users/persie/PhD_Code/3d_ant_data_rle/")
-session_list = [6,10,11,13,17,19,20,21,22,23,28,29,10]
+data_folder = Path("/Users/persie/Desktop/Dataset_for_upload/Data/")
+
+session_list = [6,10,11,13,17,19,20,21,22,23,26,28,29,30]
 prefix = "240905-1616"
 skeleton_toml_path = "../skeleton.toml"
 
@@ -43,6 +44,8 @@ for session in session_list:
     #Get size of animal
     position_df, kp_in_df = a.get_xyz_df(node_list=node_list)
     median_inter_eye = scale_from_position(position_df)
+
+    print(f'Median Inter Eye Distance for session {session}: {median_inter_eye}')
 
     #Get interaction duration
     interaction_duration = np.float64(gt["grasp"] - gt["touch"])*0.01
