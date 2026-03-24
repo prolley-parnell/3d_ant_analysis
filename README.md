@@ -8,6 +8,12 @@ Functions and scripts used to analyse and plot the data in the form of a 3D skel
 uv sync
 ```
 
+or 
+```bash
+uv sync --group 2d_validation
+```
+to install sleap for analysing the 2D output of sleap
+
 Use the ``test_box.ipynb`` to test out the classes and how they interpret files.
 
 ## Current Issues

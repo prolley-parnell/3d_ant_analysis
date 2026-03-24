@@ -23,3 +23,6 @@ dependencies = [
     "toml>=0.10.2",
     "trimesh>=4.6.6",
 ]
+
+[dependency-groups]
+2d_validation = ["sleap-io>=0.2.0", "polars>=1.31.0"]
