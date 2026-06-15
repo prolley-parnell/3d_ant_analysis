@@ -290,7 +290,7 @@ def load_session(path, session='', use_polars=True):
             loaded_catar_csv += 1
 
 
-    if loaded_slp + loaded_csv == 0:
+    if loaded_slp + loaded_csv + loaded_catar_csv == 0:
         print(f'No files loaded...')
         return []
     else:
